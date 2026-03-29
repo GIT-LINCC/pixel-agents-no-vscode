@@ -6,12 +6,17 @@ import type { HostEvent } from '../shared/host/types';
 
 const MAX_READ_BYTES = 64 * 1024;
 const CLAUDE_TEXT_IDLE_DELAY_MS = 5000;
+const CLAUDE_PERMISSION_DELAY_MS = 7000;
+const CLAUDE_PERMISSION_EXEMPT_TOOLS = new Set(['Task', 'Agent', 'AskUserQuestion']);
 
 interface SessionWatchState {
   session: DesktopMonitorSession;
   fileOffset: number;
   lineBuffer: string;
   waitingTimer: ReturnType<typeof setTimeout> | null;
+  permissionTimer: ReturnType<typeof setTimeout> | null;
+  claudeTextIdleDelayMs: number;
+  claudePermissionDelayMs: number;
   claudeState: ClaudeActivityState;
   codexState: CodexActivityState;
 }
@@ -23,6 +28,7 @@ interface ClaudeActivityState {
   activeSubagentToolIds: Map<string, Set<string>>;
   activeSubagentToolNames: Map<string, Map<string, string>>;
   backgroundAgentToolIds: Set<string>;
+  permissionSent: boolean;
   waiting: boolean;
 }
 
@@ -36,14 +42,23 @@ interface CodexRecord {
   payload?: Record<string, unknown>;
 }
 
+interface DesktopActivityMonitorOptions {
+  claudeTextIdleDelayMs?: number;
+  claudePermissionDelayMs?: number;
+}
+
 export class DesktopActivityMonitor {
   private readonly watchedSessions = new Map<string, SessionWatchState>();
 
-  constructor(private readonly emitHostEvent: (event: HostEvent) => void) {}
+  constructor(
+    private readonly emitHostEvent: (event: HostEvent) => void,
+    private readonly options: DesktopActivityMonitorOptions = {},
+  ) {}
 
   stop(): void {
     for (const watchedSession of this.watchedSessions.values()) {
       clearClaudeWaitingTimer(watchedSession);
+      clearClaudePermissionTimer(watchedSession);
     }
     this.watchedSessions.clear();
   }
@@ -63,6 +78,9 @@ export class DesktopActivityMonitor {
         fileOffset: getInitialFileOffset(session.transcriptPath),
         lineBuffer: '',
         waitingTimer: null,
+        permissionTimer: null,
+        claudeTextIdleDelayMs: this.options.claudeTextIdleDelayMs ?? CLAUDE_TEXT_IDLE_DELAY_MS,
+        claudePermissionDelayMs: this.options.claudePermissionDelayMs ?? CLAUDE_PERMISSION_DELAY_MS,
         claudeState: {
           activeToolIds: new Set(),
           activeToolNames: new Map(),
@@ -70,6 +88,7 @@ export class DesktopActivityMonitor {
           activeSubagentToolIds: new Map(),
           activeSubagentToolNames: new Map(),
           backgroundAgentToolIds: new Set(),
+          permissionSent: false,
           waiting: false,
         },
         codexState: {
@@ -81,7 +100,9 @@ export class DesktopActivityMonitor {
 
     for (const transcriptPath of [...this.watchedSessions.keys()]) {
       if (!nextKeys.has(transcriptPath)) {
-        clearClaudeWaitingTimer(this.watchedSessions.get(transcriptPath));
+        const watchedSession = this.watchedSessions.get(transcriptPath);
+        clearClaudeWaitingTimer(watchedSession);
+        clearClaudePermissionTimer(watchedSession);
         this.watchedSessions.delete(transcriptPath);
       }
     }
@@ -192,7 +213,7 @@ export function processClaudeTranscriptLine(
     const hasToolUse = blocks.some((block) => block.type === 'tool_use');
     const hasText = blocks.some((block) => block.type === 'text');
 
-    if (hasToolUse) {
+    if (hasToolUse || hasText) {
       state.waiting = false;
       events.push({ type: 'agentStatus', id: agentId, status: 'active' });
     }
@@ -216,8 +237,7 @@ export function processClaudeTranscriptLine(
     }
 
     if (!hasToolUse && hasText) {
-      state.waiting = false;
-      return [{ type: 'agentStatus', id: agentId, status: 'active' }];
+      return events;
     }
 
     return events;
@@ -240,8 +260,7 @@ export function processClaudeTranscriptLine(
     const content =
       (record.message as Record<string, unknown> | undefined)?.content ?? record.content;
     if (typeof content === 'string' && content.trim()) {
-      state.waiting = false;
-      return [{ type: 'agentStatus', id: agentId, status: 'active' }];
+      return resetClaudeForNewTurn(agentId, state);
     }
 
     if (!Array.isArray(content)) {
@@ -256,8 +275,7 @@ export function processClaudeTranscriptLine(
     const events: HostEvent[] = [];
     const hasToolResult = blocks.some((block) => block.type === 'tool_result');
     if (!hasToolResult) {
-      state.waiting = false;
-      return [{ type: 'agentStatus', id: agentId, status: 'active' }];
+      return resetClaudeForNewTurn(agentId, state);
     }
 
     for (const block of blocks) {
@@ -406,6 +424,7 @@ function readNewLines(
 
     if (watchedSession.session.agentKind === 'claude' && lines.some((line) => line.trim())) {
       clearClaudeWaitingTimer(watchedSession);
+      clearClaudePermissionState(watchedSession, emitHostEvent);
     }
 
     for (const line of lines) {
@@ -421,8 +440,12 @@ function readNewLines(
         emitHostEvent(event);
       }
 
-      if (watchedSession.session.agentKind === 'claude' && shouldScheduleClaudeWaiting(line)) {
-        scheduleClaudeWaiting(watchedSession, emitHostEvent);
+      if (watchedSession.session.agentKind === 'claude') {
+        refreshClaudePermissionTimer(watchedSession, emitHostEvent);
+
+        if (shouldScheduleClaudeWaiting(line)) {
+          scheduleClaudeWaiting(watchedSession, emitHostEvent);
+        }
       }
     }
   } catch {
@@ -660,6 +683,147 @@ function isAsyncClaudeAgentResult(content: unknown): boolean {
   return false;
 }
 
+function resetClaudeForNewTurn(agentId: number, state: ClaudeActivityState): HostEvent[] {
+  const events: HostEvent[] = [];
+  const hasToolState = state.activeToolIds.size > 0 || state.backgroundAgentToolIds.size > 0;
+
+  if (state.backgroundAgentToolIds.size > 0) {
+    for (const toolId of [...state.activeToolIds]) {
+      if (state.backgroundAgentToolIds.has(toolId)) {
+        continue;
+      }
+
+      const toolName = state.activeToolNames.get(toolId);
+      state.activeToolIds.delete(toolId);
+      state.activeToolNames.delete(toolId);
+      state.activeToolStatuses.delete(toolId);
+      if (toolName === 'Task' || toolName === 'Agent') {
+        state.activeSubagentToolIds.delete(toolId);
+        state.activeSubagentToolNames.delete(toolId);
+      }
+    }
+  } else {
+    state.activeToolIds.clear();
+    state.activeToolNames.clear();
+    state.activeToolStatuses.clear();
+    state.activeSubagentToolIds.clear();
+    state.activeSubagentToolNames.clear();
+  }
+
+  state.waiting = false;
+
+  if (hasToolState) {
+    events.push({ type: 'agentToolsClear', id: agentId });
+
+    for (const toolId of state.backgroundAgentToolIds) {
+      const status = state.activeToolStatuses.get(toolId);
+      if (!status) {
+        continue;
+      }
+
+      events.push({
+        type: 'agentToolStart',
+        id: agentId,
+        toolId,
+        status,
+      });
+    }
+  }
+
+  events.push({ type: 'agentStatus', id: agentId, status: 'active' });
+  return events;
+}
+
+function refreshClaudePermissionTimer(
+  watchedSession: SessionWatchState,
+  emitHostEvent: (event: HostEvent) => void,
+): void {
+  if (!hasClaudePermissionCandidate(watchedSession.claudeState)) {
+    clearClaudePermissionTimer(watchedSession);
+    return;
+  }
+
+  scheduleClaudePermissionCheck(watchedSession, emitHostEvent);
+}
+
+function hasClaudePermissionCandidate(state: ClaudeActivityState): boolean {
+  for (const toolId of state.activeToolIds) {
+    const toolName = state.activeToolNames.get(toolId);
+    if (toolName && !CLAUDE_PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+      return true;
+    }
+  }
+
+  for (const parentToolIds of state.activeSubagentToolNames.values()) {
+    for (const toolName of parentToolIds.values()) {
+      if (!CLAUDE_PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function getClaudePermissionSubagentParents(state: ClaudeActivityState): string[] {
+  const parentToolIds: string[] = [];
+
+  for (const [parentToolId, subToolNames] of state.activeSubagentToolNames) {
+    for (const toolName of subToolNames.values()) {
+      if (!CLAUDE_PERMISSION_EXEMPT_TOOLS.has(toolName)) {
+        parentToolIds.push(parentToolId);
+        break;
+      }
+    }
+  }
+
+  return parentToolIds;
+}
+
+function scheduleClaudePermissionCheck(
+  watchedSession: SessionWatchState,
+  emitHostEvent: (event: HostEvent) => void,
+): void {
+  clearClaudePermissionTimer(watchedSession);
+  watchedSession.permissionTimer = setTimeout(() => {
+    watchedSession.permissionTimer = null;
+
+    if (!hasClaudePermissionCandidate(watchedSession.claudeState)) {
+      return;
+    }
+
+    watchedSession.claudeState.permissionSent = true;
+    emitHostEvent({
+      type: 'agentToolPermission',
+      id: getRendererAgentId(watchedSession.session),
+    });
+
+    for (const parentToolId of getClaudePermissionSubagentParents(watchedSession.claudeState)) {
+      emitHostEvent({
+        type: 'subagentToolPermission',
+        id: getRendererAgentId(watchedSession.session),
+        parentToolId,
+      });
+    }
+  }, watchedSession.claudePermissionDelayMs);
+}
+
+function clearClaudePermissionState(
+  watchedSession: SessionWatchState,
+  emitHostEvent: (event: HostEvent) => void,
+): void {
+  clearClaudePermissionTimer(watchedSession);
+  if (!watchedSession.claudeState.permissionSent) {
+    return;
+  }
+
+  watchedSession.claudeState.permissionSent = false;
+  emitHostEvent({
+    type: 'agentToolPermissionClear',
+    id: getRendererAgentId(watchedSession.session),
+  });
+}
+
 function shouldScheduleClaudeWaiting(line: string): boolean {
   try {
     const record = JSON.parse(line) as Record<string, unknown>;
@@ -708,7 +872,7 @@ function scheduleClaudeWaiting(
       id: getRendererAgentId(watchedSession.session),
       status: 'waiting',
     });
-  }, CLAUDE_TEXT_IDLE_DELAY_MS);
+  }, watchedSession.claudeTextIdleDelayMs);
 }
 
 function clearClaudeWaitingTimer(watchedSession: SessionWatchState | undefined): void {
@@ -718,4 +882,13 @@ function clearClaudeWaitingTimer(watchedSession: SessionWatchState | undefined):
 
   clearTimeout(watchedSession.waitingTimer);
   watchedSession.waitingTimer = null;
+}
+
+function clearClaudePermissionTimer(watchedSession: SessionWatchState | undefined): void {
+  if (!watchedSession?.permissionTimer) {
+    return;
+  }
+
+  clearTimeout(watchedSession.permissionTimer);
+  watchedSession.permissionTimer = null;
 }

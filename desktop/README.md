@@ -57,10 +57,12 @@ window.pixelAgentsHost.subscribe((event) => {
   - `agentToolStart` / `agentToolDone`
   - `agentStatus`
   - `agentToolsClear`
+  - `agentToolPermission` / `agentToolPermissionClear`
   - `subagentToolStart` / `subagentToolDone` / `subagentClear` for Claude task progress
+  - `subagentToolPermission` for Claude task progress that appears stuck on approval
 - Activity coverage is intentionally lightweight:
   - Codex: `function_call`, `function_call_output`, `task_complete`
-  - Claude: `tool_use`, `tool_result`, `turn_duration`, `agent_progress`
+  - Claude: `tool_use`, `tool_result`, `turn_duration`, `agent_progress`, lightweight permission wait timers
   - Neither path reconstructs the full in-flight state from the entire transcript history yet; monitoring starts from the current file tail.
 
 ## Why It Is Structured This Way
@@ -87,6 +89,6 @@ This validates the desktop discovery/renderer compatibility layer. It still does
 
 - add an Electron dependency and desktop-specific start/build scripts
 - replace the placeholder HTML with a real desktop renderer entry
-- deepen Claude/Codex activity mapping to cover permission waits, text-only turns, and richer tool progress
+- deepen Codex activity mapping and Claude transcript coverage beyond the current lightweight timer-based model
 - expose richer desktop diagnostics and monitor controls in the shared renderer
 - decide whether desktop packaging lives here or in a later dedicated package/app directory
