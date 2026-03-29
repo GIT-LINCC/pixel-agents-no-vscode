@@ -117,6 +117,11 @@ electron.ipcRenderer.on(IPC_CHANNELS.hostEvent, (_event, payload) => {
     dispatchDesktopHostEvent(window, payload);
   }
 
+  if (payload.type === 'desktop.renderer.event') {
+    emitRendererHostEvent(payload.event);
+    return;
+  }
+
   if (payload.type === 'desktop.sessions.updated') {
     emitRendererCompatibilityEvents(
       buildRendererSessionUpdateEvents(rendererSessions, payload.sessions),

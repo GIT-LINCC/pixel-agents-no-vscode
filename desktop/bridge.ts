@@ -1,3 +1,5 @@
+import type { HostEvent } from '../shared/host/types';
+
 export const DESKTOP_BRIDGE_NAME = 'pixelAgentsDesktop';
 export const DESKTOP_HOST_EVENT = 'pixel-agents-desktop:host-event';
 
@@ -62,7 +64,8 @@ export type DesktopBridgeResponse =
 export type DesktopHostEvent =
   | { type: 'desktop.monitor.state-changed'; running: boolean }
   | { type: 'desktop.sessions.updated'; sessions: DesktopMonitorSession[] }
-  | { type: 'desktop.diagnostics.updated'; payload: DesktopDiagnostics };
+  | { type: 'desktop.diagnostics.updated'; payload: DesktopDiagnostics }
+  | { type: 'desktop.renderer.event'; event: HostEvent };
 
 export interface DesktopBridgeApi {
   invoke(request: DesktopBridgeRequest): Promise<DesktopBridgeResponse>;

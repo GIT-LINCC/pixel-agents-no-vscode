@@ -8,6 +8,7 @@ import {
   type DesktopHostEvent,
   type DesktopMonitorSession,
 } from './bridge';
+import { DesktopActivityMonitor } from './activityMonitor';
 import { discoverDesktopMonitorState } from './discovery';
 
 type BrowserWindowInstance = {
@@ -119,6 +120,9 @@ let watchRoots = {
   codex: [] as string[],
 };
 let sessions: DesktopMonitorSession[] = [];
+const activityMonitor = new DesktopActivityMonitor((event) => {
+  emitHostEvent({ type: 'desktop.renderer.event', event });
+});
 
 function createMainWindow(): BrowserWindowInstance {
   const windowInstance = new electron.BrowserWindow({
@@ -177,6 +181,7 @@ function refreshSessions(emitUpdates: boolean): void {
 
   watchRoots = nextWatchRoots;
   sessions = nextSessions;
+  activityMonitor.syncSessions(sessions);
 
   if (!emitUpdates) {
     return;
@@ -207,6 +212,7 @@ function startMonitor(): void {
 
   monitorTimer = setInterval(() => {
     refreshSessions(true);
+    activityMonitor.poll();
   }, monitorPollIntervalMs);
 }
 

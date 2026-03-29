@@ -45,8 +45,19 @@ window.pixelAgentsHost.subscribe((event) => {
   - IDE attach: off
   - shared renderer reuse: planned, not wired
 
-- The compatibility bridge only bootstraps the current renderer into desktop mode with an empty office state.
-  It does not yet translate Claude/Codex monitor sessions into live Pixel Agents.
+- The main process now discovers recent local session transcripts and exposes them through the desktop bridge:
+  - Claude: `~/.claude/projects/**/*.jsonl`
+  - Codex: `~/.codex/sessions/**/*.jsonl`
+- The compatibility bridge translates those discovered sessions into the current shared renderer contract:
+  - `existingAgents`
+  - `agentCreated` / `agentClosed`
+  - `workspaceFolders`
+  - `agentDiagnostics`
+- The current desktop shell now streams basic Codex activity into the shared renderer contract:
+  - `agentToolStart` / `agentToolDone`
+  - `agentStatus`
+  - `agentToolsClear`
+- Claude is still discovery-only for now, so only Codex sessions get live tool/status updates in this scaffold.
 
 ## Why It Is Structured This Way
 
@@ -63,14 +74,15 @@ From the repo root:
 
 ```powershell
 npx tsc --noEmit -p desktop/tsconfig.json
+node --import tsx --test desktop/*.test.ts
 ```
 
-This only validates the scaffold shape. It does not start Electron, because Electron is not yet added as a dependency in this branch.
+This validates the desktop discovery/renderer compatibility layer. It still does not start Electron, because Electron is not yet added as a dependency in this branch.
 
 ## Mainline Integration Still Needed
 
 - add an Electron dependency and desktop-specific start/build scripts
 - replace the placeholder HTML with a real desktop renderer entry
-- connect filesystem/session discovery for Claude and Codex
-- map desktop bridge capabilities into the shared renderer host abstraction
+- add Claude transcript activity mapping to match the Codex desktop monitor path
+- expose richer desktop diagnostics and monitor controls in the shared renderer
 - decide whether desktop packaging lives here or in a later dedicated package/app directory
