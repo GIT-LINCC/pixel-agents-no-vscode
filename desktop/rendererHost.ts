@@ -2,7 +2,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import type { DesktopMonitorSession } from './bridge';
+import { loadDesktopBootstrapAssets } from './assets';
 import type { AgentDiagnostics, HostEvent } from '../shared/host/types';
+
+interface RendererBootstrapOptions {
+  assetsRoot?: string;
+  extensionVersion?: string;
+}
 
 export function getRendererAgentId(session: DesktopMonitorSession): number {
   const value = `${session.agentKind}:${session.id}:${session.transcriptPath}`;
@@ -15,23 +21,33 @@ export function getRendererAgentId(session: DesktopMonitorSession): number {
   return (hash >>> 0) & 0x7fffffff;
 }
 
-export function buildRendererBootstrapEvents(sessions: DesktopMonitorSession[]): HostEvent[] {
+export function buildRendererBootstrapEvents(
+  sessions: DesktopMonitorSession[],
+  options: RendererBootstrapOptions = {},
+): HostEvent[] {
+  const bootstrapAssets = loadDesktopBootstrapAssets({ assetsRoot: options.assetsRoot });
   const events: HostEvent[] = [
+    ...bootstrapAssets.assetEvents,
     {
       type: 'settingsLoaded',
       soundEnabled: false,
       lastSeenVersion: '',
-      extensionVersion: 'desktop-monitor',
+      extensionVersion: options.extensionVersion ?? 'desktop-monitor',
       externalAssetDirectories: [],
     },
     createExistingAgentsEvent(sessions),
     createDiagnosticsEvent(sessions),
-    { type: 'layoutLoaded', layout: null, wasReset: false },
+    { type: 'layoutLoaded', layout: bootstrapAssets.layout, wasReset: false },
   ];
 
   const workspaceFoldersEvent = createWorkspaceFoldersEvent(sessions);
   if (workspaceFoldersEvent) {
-    events.splice(2, 0, workspaceFoldersEvent);
+    const diagnosticsIndex = events.findIndex((event) => event.type === 'agentDiagnostics');
+    events.splice(
+      diagnosticsIndex >= 0 ? diagnosticsIndex : events.length - 1,
+      0,
+      workspaceFoldersEvent,
+    );
   }
 
   return events;

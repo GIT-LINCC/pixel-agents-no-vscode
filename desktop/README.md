@@ -1,25 +1,28 @@
 # Desktop Host Scaffold
 
-This directory is the first no-VSCode desktop host stub for Pixel Agents.
+This directory contains the no-VSCode desktop host for Pixel Agents.
 
 ## Scope
 
-- Electron-style shell only
+- Electron shell only
 - Read-only Claude/Codex monitor MVP only
-- No dependency changes at the repo root
-- No renderer integration with `src/**` or `webview-ui/src/**` yet
+- Shared `webview-ui` renderer reused through a desktop compatibility bridge
 
 ## Files
 
-- `main.ts`: minimal Electron main-process shell, IPC handler registration, and placeholder window boot
+- `main.ts`: Electron main-process shell, IPC handler registration, session refresh loop, and renderer window boot
 - `preload.ts`: secure preload bridge that exposes a typed `window.pixelAgentsDesktop` API
 - `bridge.ts`: shared desktop bridge contract, request/response/event types, and bootstrap payload helpers
-- `tsconfig.json`: isolated TypeScript config so this scaffold can be checked without touching root config
+- `rendererHost.ts`: adapter that maps discovered desktop sessions and bootstrap payloads onto the shared renderer contract
+- `activityMonitor.ts`: read-only transcript polling for Claude and Codex activity updates
+- `assets.ts`: desktop bootstrap loader for sprites, furniture catalog, and default layout
+- `tsconfig.json`: isolated TypeScript config for desktop-only type checks
 
 ## Current Behavior
 
-- If an Electron runtime loads `dist/main.js`, it opens a placeholder desktop window.
-- If `PIXEL_AGENTS_DESKTOP_URL` is set, `main.ts` loads that renderer URL instead of the inline placeholder.
+- `npm run desktop:start` builds the shared renderer plus the desktop main/preload bundles, then launches Electron.
+- By default, the desktop app loads the built shared renderer at `dist/webview/index.html`.
+- If `PIXEL_AGENTS_DESKTOP_URL` is set, `main.ts` loads that renderer URL instead of the built file.
 - The preload bridge exposes:
 
 ```ts
@@ -65,9 +68,36 @@ window.pixelAgentsHost.subscribe((event) => {
   - Claude: `tool_use`, `tool_result`, `turn_duration`, `agent_progress`, lightweight permission wait timers
   - Neither path reconstructs the full in-flight state from the entire transcript history yet; monitoring starts from the current file tail.
 
+## Run It
+
+From the repo root:
+
+```powershell
+npm install
+npm run desktop:start
+```
+
+This launches a read-only desktop window that reuses the existing Pixel Agents UI and discovers local sessions from:
+
+- `~/.codex/sessions/**/*.jsonl`
+- `~/.claude/projects/**/*.jsonl`
+
+Current desktop capabilities:
+
+- monitor discovered Codex and Claude sessions
+- render the same office UI used by the VS Code extension
+- show tool activity, waiting state, and Claude permission/sub-agent bubbles
+
+Current desktop limitations:
+
+- no agent launch from the UI
+- no focus/close session actions
+- no layout persistence or external asset directory management
+- no IDE/window attach behavior
+
 ## Why It Is Structured This Way
 
-The goal here is to give the mainline branch a stable desktop seam without prematurely coupling Electron to the existing VS Code extension or webview runtime. The bridge contract is meant to survive the next steps:
+The goal here is to give the mainline branch a stable desktop seam without coupling Electron to the VS Code extension host. The bridge contract is meant to survive the next steps:
 
 1. wire a real renderer shell
 2. deepen transcript activity coverage beyond the current minimal event set
@@ -83,12 +113,16 @@ npx tsc --noEmit -p desktop/tsconfig.json
 node --import tsx --test desktop/*.test.ts
 ```
 
-This validates the desktop discovery/renderer compatibility layer. It still does not start Electron, because Electron is not yet added as a dependency in this branch.
+To validate the runnable desktop path:
+
+```powershell
+npm run test:desktop
+npm run desktop:build
+```
 
 ## Mainline Integration Still Needed
 
-- add an Electron dependency and desktop-specific start/build scripts
-- replace the placeholder HTML with a real desktop renderer entry
 - deepen Codex activity mapping and Claude transcript coverage beyond the current lightweight timer-based model
 - expose richer desktop diagnostics and monitor controls in the shared renderer
+- add writable desktop host features such as launch/focus/close when the no-VSCode workflow is ready for them
 - decide whether desktop packaging lives here or in a later dedicated package/app directory

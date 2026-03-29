@@ -1,4 +1,6 @@
+import * as fs from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import {
   createDesktopBootstrapPayload,
@@ -110,6 +112,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 
 const rendererUrlFromEnv = process.env.PIXEL_AGENTS_DESKTOP_URL;
 const preloadPath = join(__dirname, 'preload.js');
+const rendererEntryPath = join(__dirname, '../webview/index.html');
 const monitorPollIntervalMs = Number(process.env.PIXEL_AGENTS_DESKTOP_POLL_MS ?? 5000);
 
 let mainWindow: BrowserWindowInstance | null = null;
@@ -150,15 +153,25 @@ function createMainWindow(): BrowserWindowInstance {
     }
   });
 
-  void windowInstance.loadURL(
-    rendererUrlFromEnv ?? `data:text/html;charset=utf-8,${encodeURIComponent(PLACEHOLDER_HTML)}`,
-  );
+  void windowInstance.loadURL(resolveRendererUrl());
 
   if (process.env.PIXEL_AGENTS_DESKTOP_DEVTOOLS === '1') {
     windowInstance.webContents.openDevTools({ mode: 'detach' });
   }
 
   return windowInstance;
+}
+
+function resolveRendererUrl(): string {
+  if (rendererUrlFromEnv) {
+    return rendererUrlFromEnv;
+  }
+
+  if (fs.existsSync(rendererEntryPath)) {
+    return pathToFileURL(rendererEntryPath).toString();
+  }
+
+  return `data:text/html;charset=utf-8,${encodeURIComponent(PLACEHOLDER_HTML)}`;
 }
 
 function emitHostEvent(event: DesktopHostEvent): void {

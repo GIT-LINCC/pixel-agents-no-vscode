@@ -12,6 +12,7 @@ import {
   getRendererAgentId,
 } from './rendererHost';
 import type { DesktopMonitorSession } from './bridge';
+import { resolveDesktopAssetsRoot } from './assets';
 
 const tempDirs: string[] = [];
 
@@ -150,7 +151,9 @@ test('renderer host mapping emits bootstrap and incremental agent updates', () =
     },
   ];
 
-  const bootstrapEvents = buildRendererBootstrapEvents(previousSessions);
+  const bootstrapEvents = buildRendererBootstrapEvents(previousSessions, {
+    assetsRoot: path.join(process.cwd(), 'webview-ui', 'public', 'assets'),
+  });
   const settingsEvent = bootstrapEvents.find((event) => event.type === 'settingsLoaded');
   const layoutEvent = bootstrapEvents.find((event) => event.type === 'layoutLoaded');
   const existingAgentsEvent = bootstrapEvents.find((event) => event.type === 'existingAgents');
@@ -160,7 +163,17 @@ test('renderer host mapping emits bootstrap and incremental agent updates', () =
   assert.ok(layoutEvent);
   assert.deepEqual(
     bootstrapEvents.map((event) => event.type),
-    ['settingsLoaded', 'existingAgents', 'workspaceFolders', 'agentDiagnostics', 'layoutLoaded'],
+    [
+      'characterSpritesLoaded',
+      'floorTilesLoaded',
+      'wallTilesLoaded',
+      'furnitureAssetsLoaded',
+      'settingsLoaded',
+      'existingAgents',
+      'workspaceFolders',
+      'agentDiagnostics',
+      'layoutLoaded',
+    ],
   );
   assert.deepEqual(existingAgentsEvent, {
     type: 'existingAgents',
@@ -188,6 +201,13 @@ test('renderer host mapping emits bootstrap and incremental agent updates', () =
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0]?.jsonlExists, true);
   assert.equal(diagnostics[0]?.projectDir, 'H:\\repo-b');
+});
+
+test('resolveDesktopAssetsRoot finds bundled or source assets', () => {
+  const assetsRoot = resolveDesktopAssetsRoot(path.join(process.cwd(), 'desktop'));
+  assert.ok(assetsRoot);
+  assert.equal(fs.existsSync(path.join(assetsRoot, 'characters')), true);
+  assert.equal(fs.existsSync(path.join(assetsRoot, 'furniture')), true);
 });
 
 function createTempHome(): string {
