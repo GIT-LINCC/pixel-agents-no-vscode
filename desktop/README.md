@@ -53,20 +53,24 @@ window.pixelAgentsHost.subscribe((event) => {
   - `agentCreated` / `agentClosed`
   - `workspaceFolders`
   - `agentDiagnostics`
-- The current desktop shell now streams basic Codex activity into the shared renderer contract:
+- The current desktop shell now streams basic Claude and Codex activity into the shared renderer contract:
   - `agentToolStart` / `agentToolDone`
   - `agentStatus`
   - `agentToolsClear`
-- Claude is still discovery-only for now, so only Codex sessions get live tool/status updates in this scaffold.
+  - `subagentToolStart` / `subagentToolDone` / `subagentClear` for Claude task progress
+- Activity coverage is intentionally lightweight:
+  - Codex: `function_call`, `function_call_output`, `task_complete`
+  - Claude: `tool_use`, `tool_result`, `turn_duration`, `agent_progress`
+  - Neither path reconstructs the full in-flight state from the entire transcript history yet; monitoring starts from the current file tail.
 
 ## Why It Is Structured This Way
 
 The goal here is to give the mainline branch a stable desktop seam without prematurely coupling Electron to the existing VS Code extension or webview runtime. The bridge contract is meant to survive the next steps:
 
 1. wire a real renderer shell
-2. add Claude transcript discovery
-3. add Codex transcript discovery
-4. adapt the current UI to consume a host-agnostic bridge
+2. deepen transcript activity coverage beyond the current minimal event set
+3. adapt the current UI to consume a host-agnostic bridge without compatibility shims
+4. decide how desktop packaging and distribution should live alongside the extension
 
 ## Validation
 
@@ -83,6 +87,6 @@ This validates the desktop discovery/renderer compatibility layer. It still does
 
 - add an Electron dependency and desktop-specific start/build scripts
 - replace the placeholder HTML with a real desktop renderer entry
-- add Claude transcript activity mapping to match the Codex desktop monitor path
+- deepen Claude/Codex activity mapping to cover permission waits, text-only turns, and richer tool progress
 - expose richer desktop diagnostics and monitor controls in the shared renderer
 - decide whether desktop packaging lives here or in a later dedicated package/app directory

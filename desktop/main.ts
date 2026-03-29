@@ -222,6 +222,7 @@ function stopMonitor(): void {
     clearInterval(monitorTimer);
     monitorTimer = null;
   }
+  activityMonitor.stop();
 }
 
 function buildBootstrapResponse(): DesktopBridgeResponse {
