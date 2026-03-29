@@ -39,6 +39,15 @@ test('discoverDesktopMonitorState parses Codex session metadata and Claude trans
   const now = Date.UTC(2026, 2, 29, 12, 30, 0);
 
   fs.writeFileSync(
+    path.join(homeDir, '.codex', 'session_index.jsonl'),
+    `${JSON.stringify({
+      id: '019d37cd-d566-7da0-b038-c4f52e05433e',
+      thread_name: 'Inspect session discovery roots',
+      updated_at: new Date(now - 30_000).toISOString(),
+    })}\n`,
+    'utf8',
+  );
+  fs.writeFileSync(
     codexPath,
     `${JSON.stringify({
       type: 'session_meta',
@@ -73,7 +82,7 @@ test('discoverDesktopMonitorState parses Codex session metadata and Claude trans
   assert.equal(codexSession?.id, '019d37cd-d566-7da0-b038-c4f52e05433e');
   assert.equal(codexSession?.workspacePath, 'H:\\pixel-agents');
   assert.equal(codexSession?.status, 'watching');
-  assert.ok(codexSession?.label.includes('pixel-agents'));
+  assert.equal(codexSession?.label, 'Inspect session discovery roots');
 
   assert.ok(claudeSession);
   assert.equal(claudeSession?.id, 'session-123');
@@ -149,6 +158,10 @@ test('renderer host mapping emits bootstrap and incremental agent updates', () =
 
   assert.ok(settingsEvent);
   assert.ok(layoutEvent);
+  assert.deepEqual(
+    bootstrapEvents.map((event) => event.type),
+    ['settingsLoaded', 'existingAgents', 'workspaceFolders', 'agentDiagnostics', 'layoutLoaded'],
+  );
   assert.deepEqual(existingAgentsEvent, {
     type: 'existingAgents',
     agents: [getRendererAgentId(previousSessions[0])],
