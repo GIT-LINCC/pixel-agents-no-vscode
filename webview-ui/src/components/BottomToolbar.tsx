@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { WorkspaceFolder } from '../hooks/useExtensionMessages.js';
-import { vscode } from '../vscodeApi.js';
+import { hostBridge } from '../host/index.js';
 import { SettingsModal } from './SettingsModal.js';
 
 interface BottomToolbarProps {
@@ -81,8 +81,10 @@ export function BottomToolbar({
   }, [isFolderPickerOpen, isBypassMenuOpen]);
 
   const hasMultipleFolders = workspaceFolders.length > 1;
+  const canLaunchAgents = hostBridge.features.launchAgents;
 
   const handleAgentClick = () => {
+    if (!canLaunchAgents) return;
     setIsBypassMenuOpen(false);
     pendingBypassRef.current = false;
     if (hasMultipleFolders) {
@@ -94,6 +96,7 @@ export function BottomToolbar({
 
   const handleAgentRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!canLaunchAgents) return;
     setIsFolderPickerOpen(false);
     setIsBypassMenuOpen((v) => !v);
   };
@@ -102,7 +105,7 @@ export function BottomToolbar({
     setIsFolderPickerOpen(false);
     const bypassPermissions = pendingBypassRef.current;
     pendingBypassRef.current = false;
-    vscode.postMessage({ type: 'openClaude', folderPath: folder.path, bypassPermissions });
+    hostBridge.postMessage({ type: 'launchAgent', folderPath: folder.path, bypassPermissions });
   };
 
   const handleBypassSelect = (bypassPermissions: boolean) => {
@@ -111,7 +114,7 @@ export function BottomToolbar({
       pendingBypassRef.current = bypassPermissions;
       setIsFolderPickerOpen(true);
     } else {
-      vscode.postMessage({ type: 'openClaude', bypassPermissions });
+      hostBridge.postMessage({ type: 'launchAgent', bypassPermissions });
     }
   };
 
@@ -132,7 +135,10 @@ export function BottomToolbar({
                 : 'var(--pixel-agent-bg)',
             border: '2px solid var(--pixel-agent-border)',
             color: 'var(--pixel-agent-text)',
+            opacity: canLaunchAgents ? 1 : 'var(--pixel-btn-disabled-opacity)',
+            cursor: canLaunchAgents ? 'pointer' : 'default',
           }}
+          disabled={!canLaunchAgents}
         >
           + Agent
         </button>

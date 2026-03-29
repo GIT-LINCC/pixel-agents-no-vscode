@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import type { AgentDiagnostics, HostEvent } from '../../../shared/host/types.ts';
+import { hostBridge } from '../host/index.js';
 import type { ToolActivity } from '../office/types.js';
-import { vscode } from '../vscodeApi.js';
-
-interface AgentDiagnostics {
-  id: number;
-  projectDir: string;
-  projectDirExists: boolean;
-  jsonlFile: string;
-  jsonlExists: boolean;
-  fileSize: number;
-  fileOffset: number;
-  lastDataAt: number;
-  linesProcessed: number;
-}
 
 interface DebugViewProps {
   agents: number[];
@@ -82,30 +71,35 @@ export function DebugView({
   onSelectAgent,
 }: DebugViewProps) {
   const [diagnostics, setDiagnostics] = useState<Record<number, AgentDiagnostics>>({});
+  const canCloseAgents = hostBridge.features.closeAgents;
+  const canRequestDiagnostics = hostBridge.features.diagnostics;
 
   // Request diagnostics from extension periodically
   useEffect(() => {
-    vscode.postMessage({ type: 'requestDiagnostics' });
+    if (!canRequestDiagnostics) {
+      setDiagnostics({});
+      return;
+    }
+
+    hostBridge.postMessage({ type: 'requestDiagnostics' });
     const interval = setInterval(() => {
-      vscode.postMessage({ type: 'requestDiagnostics' });
+      hostBridge.postMessage({ type: 'requestDiagnostics' });
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [canRequestDiagnostics]);
 
   // Listen for diagnostics response
   useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      const msg = event.data;
+    const handler = (msg: HostEvent) => {
       if (msg.type === 'agentDiagnostics') {
         const map: Record<number, AgentDiagnostics> = {};
-        for (const a of msg.agents as AgentDiagnostics[]) {
+        for (const a of msg.agents) {
           map[a.id] = a;
         }
         setDiagnostics(map);
       }
     };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    return hostBridge.subscribe(handler);
   }, []);
 
   const renderAgentCard = (id: number) => {
@@ -142,7 +136,7 @@ export function DebugView({
             Agent #{id}
           </button>
           <button
-            onClick={() => vscode.postMessage({ type: 'closeAgent', id })}
+            onClick={() => hostBridge.postMessage({ type: 'closeAgent', id })}
             style={{
               borderRadius: 0,
               padding: '6px 8px',
@@ -150,8 +144,10 @@ export function DebugView({
               opacity: 0.7,
               background: isSelected ? 'rgba(90, 140, 255, 0.25)' : undefined,
               color: isSelected ? '#fff' : undefined,
+              cursor: canCloseAgents ? 'pointer' : 'default',
             }}
             title="Close agent"
+            disabled={!canCloseAgents}
           >
             ✕
           </button>
@@ -214,7 +210,7 @@ export function DebugView({
           </div>
         )}
         {/* Connection diagnostics */}
-        {diag && (
+        {canRequestDiagnostics && diag && (
           <div
             style={{
               marginTop: 6,

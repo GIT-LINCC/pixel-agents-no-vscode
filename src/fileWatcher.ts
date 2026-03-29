@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { FILE_WATCHER_POLL_INTERVAL_MS, PROJECT_SCAN_INTERVAL_MS } from './constants.js';
+import { postHostEvent } from './hostMessaging.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -66,7 +67,7 @@ export function readNewLines(
       cancelPermissionTimer(agentId, permissionTimers);
       if (agent.permissionSent) {
         agent.permissionSent = false;
-        webview?.postMessage({ type: 'agentToolPermissionClear', id: agentId });
+        postHostEvent(webview, { type: 'agentToolPermissionClear', id: agentId });
       }
     }
 
@@ -218,7 +219,7 @@ function scanForNewJsonlFiles(
       cancelPermissionTimer(id, permissionTimers);
       agents.delete(id);
       persistAgents();
-      webview?.postMessage({ type: 'agentClosed', id });
+      postHostEvent(webview, { type: 'agentClosed', id });
     }
   }
 }
@@ -266,7 +267,7 @@ function adoptTerminalForFile(
   console.log(
     `[Pixel Agents] Agent ${id}: adopted terminal "${terminal.name}" for ${path.basename(jsonlFile)}`,
   );
-  webview?.postMessage({ type: 'agentCreated', id });
+  postHostEvent(webview, { type: 'agentCreated', id });
 
   startFileWatching(
     id,

@@ -10,6 +10,7 @@ import { PULSE_ANIMATION_DURATION_SEC } from './constants.js';
 import { useEditorActions } from './hooks/useEditorActions.js';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard.js';
 import { useExtensionMessages } from './hooks/useExtensionMessages.js';
+import { hostBridge } from './host/index.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -18,7 +19,6 @@ import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
 import { isBrowserRuntime } from './runtime.js';
-import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -166,12 +166,12 @@ function App() {
   const currentMajorMinor = toMajorMinor(extensionVersion);
 
   const handleWhatsNewDismiss = useCallback(() => {
-    vscode.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
+    hostBridge.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
   }, [currentMajorMinor]);
 
   const handleOpenChangelog = useCallback(() => {
     setIsChangelogOpen(true);
-    vscode.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
+    hostBridge.postMessage({ type: 'setLastSeenVersion', version: currentMajorMinor });
   }, [currentMajorMinor]);
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
@@ -181,7 +181,8 @@ function App() {
   );
 
   const handleSelectAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'focusAgent', id });
+    if (!hostBridge.features.focusAgents) return;
+    hostBridge.postMessage({ type: 'focusAgent', id });
   }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -200,7 +201,8 @@ function App() {
   );
 
   const handleCloseAgent = useCallback((id: number) => {
-    vscode.postMessage({ type: 'closeAgent', id });
+    if (!hostBridge.features.closeAgents) return;
+    hostBridge.postMessage({ type: 'closeAgent', id });
   }, []);
 
   const handleClick = useCallback((agentId: number) => {
@@ -208,7 +210,8 @@ function App() {
     const os = getOfficeState();
     const meta = os.subagentMeta.get(agentId);
     const focusId = meta ? meta.parentAgentId : agentId;
-    vscode.postMessage({ type: 'focusAgent', id: focusId });
+    if (!hostBridge.features.focusAgents) return;
+    hostBridge.postMessage({ type: 'focusAgent', id: focusId });
   }, []);
 
   const officeState = getOfficeState();

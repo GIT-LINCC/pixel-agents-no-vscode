@@ -27,6 +27,7 @@ import type { CharacterDirectionSprites } from '../shared/assets/types.js';
 export type { CharacterDirectionSprites } from '../shared/assets/types.js';
 
 import { LAYOUT_REVISION_KEY } from './constants.js';
+import { postHostEvent } from './hostMessaging.js';
 
 export type { FurnitureAsset };
 
@@ -302,7 +303,7 @@ export async function loadWallTiles(assetsRoot: string): Promise<LoadedWallTiles
  * Send wall tiles to webview
  */
 export function sendWallTilesToWebview(webview: vscode.Webview, wallTiles: LoadedWallTiles): void {
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'wallTilesLoaded',
     sets: wallTiles.sets,
   });
@@ -370,7 +371,7 @@ export function sendFloorTilesToWebview(
   webview: vscode.Webview,
   floorTiles: LoadedFloorTiles,
 ): void {
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'floorTilesLoaded',
     sprites: floorTiles.sprites,
   });
@@ -425,7 +426,7 @@ export function sendCharacterSpritesToWebview(
   webview: vscode.Webview,
   charSprites: LoadedCharacterSprites,
 ): void {
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'characterSpritesLoaded',
     characters: charSprites.characters,
   });
@@ -451,7 +452,7 @@ export function sendAssetsToWebview(webview: vscode.Webview, assets: LoadedAsset
   console.log(
     `[AssetLoader] Posting furnitureAssetsLoaded message with ${assets.catalog.length} assets`,
   );
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'furnitureAssetsLoaded',
     catalog: assets.catalog,
     sprites: spritesObj,

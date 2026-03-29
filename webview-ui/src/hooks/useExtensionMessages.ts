@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 
+import type { HostEvent, WorkspaceFolderInfo } from '../../../shared/host/types.ts';
+import { hostBridge } from '../host/index.js';
 import { playDoneSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
-import { buildDynamicCatalog } from '../office/layout/furnitureCatalog.js';
+import { buildDynamicCatalog, type LoadedAssetData } from '../office/layout/furnitureCatalog.js';
 import { migrateLayoutColors } from '../office/layout/layoutSerializer.js';
 import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
-import { vscode } from '../vscodeApi.js';
 
 export interface SubagentCharacter {
   id: number;
@@ -18,33 +19,7 @@ export interface SubagentCharacter {
   label: string;
 }
 
-export interface FurnitureAsset {
-  id: string;
-  name: string;
-  label: string;
-  category: string;
-  file: string;
-  width: number;
-  height: number;
-  footprintW: number;
-  footprintH: number;
-  isDesk: boolean;
-  canPlaceOnWalls: boolean;
-  groupId?: string;
-  canPlaceOnSurfaces?: boolean;
-  backgroundTiles?: number;
-  orientation?: string;
-  state?: string;
-  mirrorSide?: boolean;
-  rotationScheme?: string;
-  animationGroup?: string;
-  frame?: number;
-}
-
-export interface WorkspaceFolder {
-  name: string;
-  path: string;
-}
+export type WorkspaceFolder = WorkspaceFolderInfo;
 
 export interface ExtensionMessageState {
   agents: number[];
@@ -55,7 +30,7 @@ export interface ExtensionMessageState {
   subagentCharacters: SubagentCharacter[];
   layoutReady: boolean;
   layoutWasReset: boolean;
-  loadedAssets?: { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> };
+  loadedAssets?: LoadedAssetData;
   workspaceFolders: WorkspaceFolder[];
   externalAssetDirectories: string[];
   lastSeenVersion: string;
@@ -68,7 +43,7 @@ function saveAgentSeats(os: OfficeState): void {
     if (ch.isSubagent) continue;
     seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId };
   }
-  vscode.postMessage({ type: 'saveAgentSeats', seats });
+  hostBridge.postMessage({ type: 'saveAgentSeats', seats });
 }
 
 export function useExtensionMessages(
@@ -86,13 +61,15 @@ export function useExtensionMessages(
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
-  const [loadedAssets, setLoadedAssets] = useState<
-    { catalog: FurnitureAsset[]; sprites: Record<string, string[][]> } | undefined
-  >();
+  const [loadedAssets, setLoadedAssets] = useState<LoadedAssetData | undefined>();
   const [workspaceFolders, setWorkspaceFolders] = useState<WorkspaceFolder[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
   const [lastSeenVersion, setLastSeenVersion] = useState('');
   const [extensionVersion, setExtensionVersion] = useState('');
+  const onLayoutLoadedEvent = useEffectEvent((layout: OfficeLayout) => {
+    onLayoutLoaded?.(layout);
+  });
+  const isEditDirtyEvent = useEffectEvent(() => isEditDirty?.() ?? false);
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -107,13 +84,12 @@ export function useExtensionMessages(
       folderName?: string;
     }> = [];
 
-    const handler = (e: MessageEvent) => {
-      const msg = e.data;
+    const handler = (msg: HostEvent) => {
       const os = getOfficeState();
 
       if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
-        if (layoutReadyRef.current && isEditDirty?.()) {
+        if (layoutReadyRef.current && isEditDirtyEvent()) {
           console.log('[Webview] Skipping external layout update — editor has unsaved changes');
           return;
         }
@@ -121,10 +97,10 @@ export function useExtensionMessages(
         const layout = rawLayout && rawLayout.version === 1 ? migrateLayoutColors(rawLayout) : null;
         if (layout) {
           os.rebuildFromLayout(layout);
-          onLayoutLoaded?.(layout);
+          onLayoutLoadedEvent(layout);
         } else {
           // Default layout — snapshot whatever OfficeState built
-          onLayoutLoaded?.(os.getLayout());
+          onLayoutLoadedEvent(os.getLayout());
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
@@ -385,8 +361,7 @@ export function useExtensionMessages(
         console.log(`[Webview] Received ${sets.length} wall tile set(s)`);
         setWallSprites(sets);
       } else if (msg.type === 'workspaceFolders') {
-        const folders = msg.folders as WorkspaceFolder[];
-        setWorkspaceFolders(folders);
+        setWorkspaceFolders(msg.folders);
       } else if (msg.type === 'settingsLoaded') {
         const soundOn = msg.soundEnabled as boolean;
         setSoundEnabled(soundOn);
@@ -405,8 +380,8 @@ export function useExtensionMessages(
         }
       } else if (msg.type === 'furnitureAssetsLoaded') {
         try {
-          const catalog = msg.catalog as FurnitureAsset[];
-          const sprites = msg.sprites as Record<string, string[][]>;
+          const catalog = msg.catalog;
+          const sprites = msg.sprites;
           console.log(`📦 Webview: Loaded ${catalog.length} furniture assets`);
           // Build dynamic catalog immediately so getCatalogEntry() works when layoutLoaded arrives next
           buildDynamicCatalog({ catalog, sprites });
@@ -416,9 +391,9 @@ export function useExtensionMessages(
         }
       }
     };
-    window.addEventListener('message', handler);
-    vscode.postMessage({ type: 'webviewReady' });
-    return () => window.removeEventListener('message', handler);
+    const unsubscribe = hostBridge.subscribe(handler);
+    hostBridge.postMessage({ type: 'webviewReady' });
+    return unsubscribe;
   }, [getOfficeState]);
 
   return {

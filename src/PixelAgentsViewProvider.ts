@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { AgentDiagnostics } from '../shared/host/types.js';
+import { normalizeHostCommand } from '../shared/host/types.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -33,6 +35,7 @@ import {
   WORKSPACE_KEY_AGENT_SEATS,
 } from './constants.js';
 import { ensureProjectScan } from './fileWatcher.js';
+import { postHostEvent } from './hostMessaging.js';
 import type { LayoutWatcher } from './layoutPersistence.js';
 import { readLayoutFromFile, watchLayoutFile, writeLayoutToFile } from './layoutPersistence.js';
 import type { AgentState } from './types.js';
@@ -83,8 +86,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
-    webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'openClaude') {
+    webviewView.webview.onDidReceiveMessage(async (rawMessage) => {
+      const message = normalizeHostCommand(rawMessage);
+      if (!message) {
+        return;
+      }
+
+      if (message.type === 'launchAgent') {
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -149,7 +157,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         const extensionVersion =
           (this.context.extension.packageJSON as { version?: string }).version ?? '';
         const config = readConfig();
-        this.webview?.postMessage({
+        postHostEvent(this.webview, {
           type: 'settingsLoaded',
           soundEnabled,
           lastSeenVersion,
@@ -160,7 +168,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         // Send workspace folders to webview (only when multi-root)
         const wsFolders = vscode.workspace.workspaceFolders;
         if (wsFolders && wsFolders.length > 1) {
-          this.webview?.postMessage({
+          postHostEvent(this.webview, {
             type: 'workspaceFolders',
             folders: wsFolders.map((f) => ({ name: f.name, path: f.uri.fsPath })),
           });
@@ -259,7 +267,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         sendExistingAgents(this.agents, this.context, this.webview);
       } else if (message.type === 'requestDiagnostics') {
         // Send connection diagnostics for all agents to the Debug View
-        const diagnostics: Array<Record<string, unknown>> = [];
+        const diagnostics: AgentDiagnostics[] = [];
         for (const [, agent] of this.agents) {
           let jsonlExists = false;
           let fileSize = 0;
@@ -282,7 +290,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             linesProcessed: agent.linesProcessed,
           });
         }
-        this.webview?.postMessage({ type: 'agentDiagnostics', agents: diagnostics });
+        postHostEvent(this.webview, { type: 'agentDiagnostics', agents: diagnostics });
       } else if (message.type === 'openSessionsFolder') {
         const projectDir = getProjectDirPath();
         if (projectDir && fs.existsSync(projectDir)) {
@@ -317,7 +325,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           writeConfig(cfg);
         }
         await this.reloadAndSendFurniture();
-        this.webview?.postMessage({
+        postHostEvent(this.webview, {
           type: 'externalAssetDirectoriesUpdated',
           dirs: cfg.externalAssetDirectories,
         });
@@ -328,7 +336,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         );
         writeConfig(cfg);
         await this.reloadAndSendFurniture();
-        this.webview?.postMessage({
+        postHostEvent(this.webview, {
           type: 'externalAssetDirectoriesUpdated',
           dirs: cfg.externalAssetDirectories,
         });
@@ -347,7 +355,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
           this.layoutWatcher?.markOwnWrite();
           writeLayoutToFile(imported);
-          this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
+          postHostEvent(this.webview, { type: 'layoutLoaded', layout: imported });
           vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
         } catch {
           vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
@@ -361,7 +369,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
       for (const [id, agent] of this.agents) {
         if (agent.terminalRef === terminal) {
           this.activeAgentId.current = id;
-          webviewView.webview.postMessage({ type: 'agentSelected', id });
+          postHostEvent(webviewView.webview, { type: 'agentSelected', id });
           break;
         }
       }
@@ -383,7 +391,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.jsonlPollTimers,
             this.persistAgents,
           );
-          webviewView.webview.postMessage({ type: 'agentClosed', id });
+          postHostEvent(webviewView.webview, { type: 'agentClosed', id });
         }
       }
     });
@@ -454,7 +462,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     if (this.layoutWatcher) return;
     this.layoutWatcher = watchLayoutFile((layout) => {
       console.log('[Pixel Agents] External layout change — pushing to webview');
-      this.webview?.postMessage({ type: 'layoutLoaded', layout });
+      postHostEvent(this.webview, { type: 'layoutLoaded', layout });
     });
   }
 

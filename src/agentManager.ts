@@ -10,6 +10,7 @@ import {
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
 import { ensureProjectScan, readNewLines, startFileWatching } from './fileWatcher.js';
+import { postHostEvent } from './hostMessaging.js';
 import { migrateAndLoadLayout } from './layoutPersistence.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
@@ -126,7 +127,7 @@ export async function launchNewTerminal(
   activeAgentIdRef.current = id;
   persistAgents();
   console.log(`[Pixel Agents] Agent ${id}: created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
+  postHostEvent(webview, { type: 'agentCreated', id, folderName });
 
   ensureProjectScan(
     projectDir,
@@ -419,7 +420,7 @@ export function sendExistingAgents(
     `[Pixel Agents] sendExistingAgents: agents=${JSON.stringify(agentIds)}, meta=${JSON.stringify(agentMeta)}`,
   );
 
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'existingAgents',
     agents: agentIds,
     agentMeta,
@@ -437,7 +438,7 @@ export function sendCurrentAgentStatuses(
   for (const [agentId, agent] of agents) {
     // Re-send active tools
     for (const [toolId, status] of agent.activeToolStatuses) {
-      webview.postMessage({
+      postHostEvent(webview, {
         type: 'agentToolStart',
         id: agentId,
         toolId,
@@ -446,7 +447,7 @@ export function sendCurrentAgentStatuses(
     }
     // Re-send waiting status
     if (agent.isWaiting) {
-      webview.postMessage({
+      postHostEvent(webview, {
         type: 'agentStatus',
         id: agentId,
         status: 'waiting',
@@ -462,7 +463,7 @@ export function sendLayout(
 ): void {
   if (!webview) return;
   const result = migrateAndLoadLayout(context, defaultLayout);
-  webview.postMessage({
+  postHostEvent(webview, {
     type: 'layoutLoaded',
     layout: result?.layout ?? null,
     wasReset: result?.wasReset ?? false,

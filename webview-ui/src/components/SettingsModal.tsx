@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
+import { hostBridge } from '../host/index.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
-import { vscode } from '../vscodeApi.js';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -39,6 +39,7 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
+  const { externalAssets, importExportLayout, openSessionsFolder } = hostBridge.features;
 
   if (!isOpen) return null;
 
@@ -104,113 +105,123 @@ export function SettingsModal({
           </button>
         </div>
         {/* Menu items */}
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'openSessionsFolder' });
-            onClose();
-          }}
-          onMouseEnter={() => setHovered('sessions')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Open Sessions Folder
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'exportLayout' });
-            onClose();
-          }}
-          onMouseEnter={() => setHovered('export')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'export' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Export Layout
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'importLayout' });
-            onClose();
-          }}
-          onMouseEnter={() => setHovered('import')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'import' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Import Layout
-        </button>
-        <button
-          onClick={() => {
-            vscode.postMessage({ type: 'addExternalAssetDirectory' });
-            onClose();
-          }}
-          onMouseEnter={() => setHovered('addAssets')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...menuItemBase,
-            background: hovered === 'addAssets' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          }}
-        >
-          Add Asset Directory
-        </button>
-        {externalAssetDirectories.map((dir) => (
-          <div
-            key={dir}
+        {openSessionsFolder && (
+          <button
+            onClick={() => {
+              hostBridge.postMessage({ type: 'openSessionsFolder' });
+              onClose();
+            }}
+            onMouseEnter={() => setHovered('sessions')}
+            onMouseLeave={() => setHovered(null)}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '4px 10px',
-              gap: 8,
+              ...menuItemBase,
+              background: hovered === 'sessions' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
             }}
           >
-            <span
+            Open Sessions Folder
+          </button>
+        )}
+        {importExportLayout && (
+          <button
+            onClick={() => {
+              hostBridge.postMessage({ type: 'exportLayout' });
+              onClose();
+            }}
+            onMouseEnter={() => setHovered('export')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              ...menuItemBase,
+              background: hovered === 'export' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            }}
+          >
+            Export Layout
+          </button>
+        )}
+        {importExportLayout && (
+          <button
+            onClick={() => {
+              hostBridge.postMessage({ type: 'importLayout' });
+              onClose();
+            }}
+            onMouseEnter={() => setHovered('import')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              ...menuItemBase,
+              background: hovered === 'import' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            }}
+          >
+            Import Layout
+          </button>
+        )}
+        {externalAssets && (
+          <button
+            onClick={() => {
+              hostBridge.postMessage({ type: 'addExternalAssetDirectory' });
+              onClose();
+            }}
+            onMouseEnter={() => setHovered('addAssets')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              ...menuItemBase,
+              background: hovered === 'addAssets' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+            }}
+          >
+            Add Asset Directory
+          </button>
+        )}
+        {externalAssets &&
+          externalAssetDirectories.map((dir) => (
+            <div
+              key={dir}
               style={{
-                fontSize: '18px',
-                color: 'rgba(255, 255, 255, 0.5)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: 180,
-              }}
-              title={dir}
-            >
-              {dir.split(/[/\\]/).pop() ?? dir}
-            </span>
-            <button
-              onClick={() =>
-                vscode.postMessage({ type: 'removeExternalAssetDirectory', path: dir })
-              }
-              onMouseEnter={() => setHovered(`remove-${dir}`)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                background: hovered === `remove-${dir}` ? 'rgba(255, 80, 80, 0.2)' : 'transparent',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: 0,
-                color: 'rgba(255, 255, 255, 0.5)',
-                fontSize: '18px',
-                cursor: 'pointer',
-                padding: '1px 6px',
-                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 10px',
+                gap: 8,
               }}
             >
-              X
-            </button>
-          </div>
-        ))}
+              <span
+                style={{
+                  fontSize: '18px',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 180,
+                }}
+                title={dir}
+              >
+                {dir.split(/[/\\]/).pop() ?? dir}
+              </span>
+              <button
+                onClick={() =>
+                  hostBridge.postMessage({ type: 'removeExternalAssetDirectory', path: dir })
+                }
+                onMouseEnter={() => setHovered(`remove-${dir}`)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  background:
+                    hovered === `remove-${dir}` ? 'rgba(255, 80, 80, 0.2)' : 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: 0,
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  padding: '1px 6px',
+                  flexShrink: 0,
+                }}
+              >
+                X
+              </button>
+            </div>
+          ))}
         <button
           onClick={() => {
             const newVal = !isSoundEnabled();
             setSoundEnabled(newVal);
             setSoundLocal(newVal);
-            vscode.postMessage({ type: 'setSoundEnabled', enabled: newVal });
+            hostBridge.postMessage({ type: 'setSoundEnabled', enabled: newVal });
           }}
           onMouseEnter={() => setHovered('sound')}
           onMouseLeave={() => setHovered(null)}

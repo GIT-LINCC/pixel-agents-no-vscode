@@ -25,6 +25,8 @@ import type {
   CatalogEntry,
   CharacterDirectionSprites,
 } from '../../shared/assets/types.ts';
+import type { HostEvent } from '../../shared/host/types.ts';
+import { dispatchHostEvent } from './host/windowEvents.js';
 
 interface MockPayload {
   characters: CharacterDirectionSprites[];
@@ -253,8 +255,8 @@ export function dispatchMockMessages(): void {
   const { characters, floorSprites, wallSets, furnitureCatalog, furnitureSprites, layout } =
     mockPayload;
 
-  function dispatch(data: unknown): void {
-    window.dispatchEvent(new MessageEvent('message', { data }));
+  function dispatch(data: HostEvent): void {
+    dispatchHostEvent(window, data);
   }
 
   // Must match the load order defined in CLAUDE.md:

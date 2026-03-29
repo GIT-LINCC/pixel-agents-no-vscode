@@ -7,6 +7,7 @@ import {
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
 } from './constants.js';
+import { postHostEvent } from './hostMessaging.js';
 import {
   cancelPermissionTimer,
   cancelWaitingTimer,
@@ -89,7 +90,7 @@ export function processTranscriptLine(
         cancelWaitingTimer(agentId, waitingTimers);
         agent.isWaiting = false;
         agent.hadToolsInTurn = true;
-        webview?.postMessage({ type: 'agentStatus', id: agentId, status: 'active' });
+        postHostEvent(webview, { type: 'agentStatus', id: agentId, status: 'active' });
         let hasNonExemptTool = false;
         for (const block of blocks) {
           if (block.type === 'tool_use' && block.id) {
@@ -102,7 +103,7 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
-            webview?.postMessage({
+            postHostEvent(webview, {
               type: 'agentToolStart',
               id: agentId,
               toolId: block.id,
@@ -160,7 +161,7 @@ export function processTranscriptLine(
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
-                webview?.postMessage({
+                postHostEvent(webview, {
                   type: 'subagentClear',
                   id: agentId,
                   parentToolId: completedToolId,
@@ -171,7 +172,7 @@ export function processTranscriptLine(
               agent.activeToolNames.delete(completedToolId);
               const toolId = completedToolId;
               setTimeout(() => {
-                webview?.postMessage({
+                postHostEvent(webview, {
                   type: 'agentToolDone',
                   id: agentId,
                   toolId,
@@ -210,7 +211,7 @@ export function processTranscriptLine(
             agent.backgroundAgentToolIds.delete(completedToolId);
             agent.activeSubagentToolIds.delete(completedToolId);
             agent.activeSubagentToolNames.delete(completedToolId);
-            webview?.postMessage({
+            postHostEvent(webview, {
               type: 'subagentClear',
               id: agentId,
               parentToolId: completedToolId,
@@ -220,7 +221,7 @@ export function processTranscriptLine(
             agent.activeToolNames.delete(completedToolId);
             const toolId = completedToolId;
             setTimeout(() => {
-              webview?.postMessage({
+              postHostEvent(webview, {
                 type: 'agentToolDone',
                 id: agentId,
                 toolId,
@@ -248,12 +249,12 @@ export function processTranscriptLine(
             agent.activeSubagentToolNames.delete(toolId);
           }
         }
-        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        postHostEvent(webview, { type: 'agentToolsClear', id: agentId });
         // Re-send background agent tools so webview keeps their sub-agents alive
         for (const toolId of agent.backgroundAgentToolIds) {
           const status = agent.activeToolStatuses.get(toolId);
           if (status) {
-            webview?.postMessage({
+            postHostEvent(webview, {
               type: 'agentToolStart',
               id: agentId,
               toolId,
@@ -267,13 +268,13 @@ export function processTranscriptLine(
         agent.activeToolNames.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
-        webview?.postMessage({ type: 'agentToolsClear', id: agentId });
+        postHostEvent(webview, { type: 'agentToolsClear', id: agentId });
       }
 
       agent.isWaiting = true;
       agent.permissionSent = false;
       agent.hadToolsInTurn = false;
-      webview?.postMessage({
+      postHostEvent(webview, {
         type: 'agentStatus',
         id: agentId,
         status: 'waiting',
@@ -365,7 +366,7 @@ function processProgressRecord(
           hasNonExemptSubTool = true;
         }
 
-        webview?.postMessage({
+        postHostEvent(webview, {
           type: 'subagentToolStart',
           id: agentId,
           parentToolId,
@@ -396,7 +397,7 @@ function processProgressRecord(
 
         const toolId = block.tool_use_id;
         setTimeout(() => {
-          webview?.postMessage({
+          postHostEvent(webview, {
             type: 'subagentToolDone',
             id: agentId,
             parentToolId,
