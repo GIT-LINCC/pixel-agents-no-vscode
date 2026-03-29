@@ -12,6 +12,11 @@ import {
 } from './bridge';
 import { DesktopActivityMonitor } from './activityMonitor';
 import { discoverDesktopMonitorState } from './discovery';
+import {
+  buildRendererBootstrapEvents,
+  buildRendererDiagnostics,
+  buildRendererSessionUpdateEvents,
+} from './rendererHost';
 
 type BrowserWindowInstance = {
   loadURL(url: string): Promise<void>;
@@ -19,6 +24,15 @@ type BrowserWindowInstance = {
   show(): void;
   isDestroyed(): boolean;
   webContents: {
+    executeJavaScript<T>(code: string): Promise<T>;
+    on(
+      event: 'console-message',
+      listener: (_event: unknown, level: number, message: string) => void,
+    ): void;
+    on(
+      event: 'preload-error',
+      listener: (_event: unknown, preloadPath: string, error: Error) => void,
+    ): void;
     send(channel: string, payload: DesktopHostEvent): void;
     openDevTools(options?: { mode: 'detach' | 'undocked' }): void;
   };
@@ -114,6 +128,8 @@ const rendererUrlFromEnv = process.env.PIXEL_AGENTS_DESKTOP_URL;
 const preloadPath = join(__dirname, 'preload.js');
 const rendererEntryPath = join(__dirname, '../webview/index.html');
 const monitorPollIntervalMs = Number(process.env.PIXEL_AGENTS_DESKTOP_POLL_MS ?? 5000);
+const traceDesktop = process.env.PIXEL_AGENTS_DESKTOP_TRACE === '1';
+const traceFilePath = join(process.cwd(), 'desktop-trace.log');
 
 let mainWindow: BrowserWindowInstance | null = null;
 let monitorRunning = false;
@@ -127,6 +143,16 @@ const activityMonitor = new DesktopActivityMonitor((event) => {
   emitHostEvent({ type: 'desktop.renderer.event', event });
 });
 
+function writeTrace(label: string, payload?: unknown): void {
+  if (!traceDesktop) {
+    return;
+  }
+
+  const line = `[main] ${label}${payload === undefined ? '' : ` ${JSON.stringify(payload)}`}\n`;
+  fs.appendFileSync(traceFilePath, line, 'utf8');
+  console.log(`[Pixel Agents Desktop][trace] ${label}`, payload ?? '');
+}
+
 function createMainWindow(): BrowserWindowInstance {
   const windowInstance = new electron.BrowserWindow({
     width: 1440,
@@ -137,6 +163,7 @@ function createMainWindow(): BrowserWindowInstance {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
       preload: preloadPath,
@@ -153,10 +180,37 @@ function createMainWindow(): BrowserWindowInstance {
     }
   });
 
-  void windowInstance.loadURL(resolveRendererUrl());
+  void windowInstance.loadURL(resolveRendererUrl()).then(async () => {
+    if (!traceDesktop) {
+      return;
+    }
+
+    const rendererSnapshot = await windowInstance.webContents.executeJavaScript<{
+      hasDesktopHost: boolean;
+      bodyText: string;
+      title: string;
+    }>(`({
+      hasDesktopHost: Boolean(window.pixelAgentsHost),
+      bodyText: document.body.innerText,
+      title: document.title,
+    })`);
+    writeTrace('renderer snapshot', rendererSnapshot);
+  });
 
   if (process.env.PIXEL_AGENTS_DESKTOP_DEVTOOLS === '1') {
     windowInstance.webContents.openDevTools({ mode: 'detach' });
+  }
+
+  if (traceDesktop) {
+    windowInstance.webContents.on('console-message', (_event, level, message) => {
+      writeTrace('renderer console', { level, message });
+    });
+    windowInstance.webContents.on('preload-error', (_event, failingPreloadPath, error) => {
+      writeTrace('preload error', {
+        preloadPath: failingPreloadPath,
+        error: error.message,
+      });
+    });
   }
 
   return windowInstance;
@@ -183,6 +237,7 @@ function emitHostEvent(event: DesktopHostEvent): void {
 }
 
 function refreshSessions(emitUpdates: boolean): void {
+  const previousSessions = sessions;
   const snapshot = discoverDesktopMonitorState();
   const nextWatchRoots = {
     claude: [...(snapshot.watchRoots.claude ?? [])],
@@ -202,6 +257,9 @@ function refreshSessions(emitUpdates: boolean): void {
 
   if (sessionsChanged) {
     emitHostEvent({ type: 'desktop.sessions.updated', sessions });
+    for (const event of buildRendererSessionUpdateEvents(previousSessions, nextSessions)) {
+      emitHostEvent({ type: 'desktop.renderer.event', event });
+    }
   }
 
   if (sessionsChanged || watchRootsChanged) {
@@ -251,6 +309,7 @@ function buildBootstrapResponse(): DesktopBridgeResponse {
         'Renderer compatibility mode maps discovered Claude and Codex sessions onto the existing Pixel Agents webview contract.',
       ],
     }),
+    rendererEvents: buildRendererBootstrapEvents(sessions),
   };
 }
 
@@ -283,6 +342,12 @@ function handleBridgeRequest(request: DesktopBridgeRequest): DesktopBridgeRespon
       return { type: 'desktop.sessions.result', sessions };
     case 'desktop.diagnostics.get':
       return buildDiagnosticsResponse();
+    case 'desktop.renderer.diagnostics.get':
+      refreshSessions(false);
+      return {
+        type: 'desktop.renderer.diagnostics.result',
+        agents: buildRendererDiagnostics(sessions),
+      };
     default:
       return assertNever(request);
   }

@@ -95,6 +95,17 @@ Current desktop limitations:
 - no layout persistence or external asset directory management
 - no IDE/window attach behavior
 
+## Troubleshooting
+
+If the desktop window opens but does not reflect local sessions, run the desktop host with tracing enabled:
+
+```powershell
+$env:PIXEL_AGENTS_DESKTOP_TRACE = "1"
+npm run desktop:start
+```
+
+This writes main-process trace output to `desktop-trace.log` in the repo root so preload/bootstrap issues are visible without opening DevTools.
+
 ## Why It Is Structured This Way
 
 The goal here is to give the mainline branch a stable desktop seam without coupling Electron to the VS Code extension host. The bridge contract is meant to survive the next steps:

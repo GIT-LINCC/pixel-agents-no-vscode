@@ -8,11 +8,6 @@ import {
   dispatchDesktopHostEvent,
   IPC_CHANNELS,
 } from './bridge';
-import {
-  buildRendererBootstrapEvents,
-  buildRendererDiagnostics,
-  buildRendererSessionUpdateEvents,
-} from './rendererHost';
 
 const RENDERER_HOST_BRIDGE_NAME = 'pixelAgentsHost';
 const RENDERER_HOST_EVENT = 'pixel-agents:host-message';
@@ -67,6 +62,7 @@ declare global {
 const electron = require('electron') as ElectronPreloadModule;
 const listeners = new Set<(event: DesktopHostEvent) => void>();
 const rendererHostListeners = new Set<(event: RendererHostEvent) => void>();
+const traceDesktop = process.env.PIXEL_AGENTS_DESKTOP_TRACE === '1';
 let rendererSessions = [] as Array<{
   id: string;
   agentKind: 'claude' | 'codex';
@@ -88,7 +84,16 @@ const rendererHostFeatures: RendererHostFeatures = {
   externalAssets: false,
 };
 
+function writeTrace(label: string, payload?: unknown): void {
+  if (!traceDesktop) {
+    return;
+  }
+
+  console.log(`[Pixel Agents Desktop][preload] ${label}`, payload ?? '');
+}
+
 function emitRendererHostEvent(event: RendererHostEvent): void {
+  writeTrace('renderer event', event.type);
   for (const listener of rendererHostListeners) {
     listener(event);
   }
@@ -123,9 +128,6 @@ electron.ipcRenderer.on(IPC_CHANNELS.hostEvent, (_event, payload) => {
   }
 
   if (payload.type === 'desktop.sessions.updated') {
-    emitRendererCompatibilityEvents(
-      buildRendererSessionUpdateEvents(rendererSessions, payload.sessions),
-    );
     rendererSessions = payload.sessions;
   }
 });
@@ -143,13 +145,20 @@ const api = createDesktopBridge({
 });
 
 async function emitBootstrapToRenderer(): Promise<void> {
+  writeTrace('emitBootstrapToRenderer called');
   const response = await api.invoke({ type: 'desktop.bootstrap' });
   if (response.type !== 'desktop.bootstrap.result') {
+    writeTrace('unexpected bootstrap response', response.type);
     return;
   }
 
   rendererSessions = response.payload.sessions;
-  emitRendererCompatibilityEvents(buildRendererBootstrapEvents(rendererSessions));
+  writeTrace('bootstrap sessions', rendererSessions.length);
+  writeTrace(
+    'bootstrap event types',
+    response.rendererEvents.map((event) => event.type),
+  );
+  emitRendererCompatibilityEvents(response.rendererEvents);
   await api.invoke({ type: 'desktop.monitor.start' });
 }
 
@@ -161,9 +170,15 @@ const rendererHostApi: RendererHostApi = {
         void emitBootstrapToRenderer();
         return;
       case 'requestDiagnostics':
-        emitRendererHostEvent({
-          type: 'agentDiagnostics',
-          agents: buildRendererDiagnostics(rendererSessions),
+        void api.invoke({ type: 'desktop.renderer.diagnostics.get' }).then((response) => {
+          if (response.type !== 'desktop.renderer.diagnostics.result') {
+            return;
+          }
+
+          emitRendererHostEvent({
+            type: 'agentDiagnostics',
+            agents: response.agents,
+          });
         });
         return;
       case 'setSoundEnabled':
@@ -187,3 +202,4 @@ const rendererHostApi: RendererHostApi = {
 
 electron.contextBridge.exposeInMainWorld(DESKTOP_BRIDGE_NAME, api);
 electron.contextBridge.exposeInMainWorld(RENDERER_HOST_BRIDGE_NAME, rendererHostApi);
+writeTrace('bridges exposed');

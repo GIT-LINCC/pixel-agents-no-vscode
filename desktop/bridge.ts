@@ -1,4 +1,4 @@
-import type { HostEvent } from '../shared/host/types';
+import type { AgentDiagnostics, HostEvent } from '../shared/host/types';
 
 export const DESKTOP_BRIDGE_NAME = 'pixelAgentsDesktop';
 export const DESKTOP_HOST_EVENT = 'pixel-agents-desktop:host-event';
@@ -53,13 +53,19 @@ export type DesktopBridgeRequest =
   | { type: 'desktop.monitor.start' }
   | { type: 'desktop.monitor.stop' }
   | { type: 'desktop.sessions.list' }
-  | { type: 'desktop.diagnostics.get' };
+  | { type: 'desktop.diagnostics.get' }
+  | { type: 'desktop.renderer.diagnostics.get' };
 
 export type DesktopBridgeResponse =
-  | { type: 'desktop.bootstrap.result'; payload: DesktopBootstrapPayload }
+  | {
+      type: 'desktop.bootstrap.result';
+      payload: DesktopBootstrapPayload;
+      rendererEvents: HostEvent[];
+    }
   | { type: 'desktop.monitor.state'; running: boolean }
   | { type: 'desktop.sessions.result'; sessions: DesktopMonitorSession[] }
-  | { type: 'desktop.diagnostics.result'; payload: DesktopDiagnostics };
+  | { type: 'desktop.diagnostics.result'; payload: DesktopDiagnostics }
+  | { type: 'desktop.renderer.diagnostics.result'; agents: AgentDiagnostics[] };
 
 export type DesktopHostEvent =
   | { type: 'desktop.monitor.state-changed'; running: boolean }

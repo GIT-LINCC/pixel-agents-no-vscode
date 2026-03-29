@@ -127,7 +127,7 @@ function App() {
   // Browser runtime (dev or static dist): dispatch mock messages after the
   // useExtensionMessages listener has been registered.
   useEffect(() => {
-    if (isBrowserRuntime) {
+    if (isBrowserRuntime()) {
       void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
     }
   }, []);

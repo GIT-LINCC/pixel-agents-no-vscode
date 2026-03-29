@@ -1,17 +1,12 @@
-import { runtime } from '../runtime.js';
+import { getDesktopHost, getRuntime } from '../runtime.js';
 import type { HostBridge } from './bridge.js';
 import type { DesktopHostApi } from './contracts.js';
 import { createBrowserHostBridge } from './providers/browser.js';
 import { createDesktopHostBridge } from './providers/desktop.js';
 import { createVsCodeHostBridge } from './providers/vscode.js';
 
-function getDesktopHost(): DesktopHostApi | undefined {
-  return (globalThis as typeof globalThis & { window?: { pixelAgentsHost?: DesktopHostApi } })
-    .window?.pixelAgentsHost;
-}
-
 export function createHostBridgeForRuntime(
-  currentRuntime: typeof runtime,
+  currentRuntime: ReturnType<typeof getRuntime>,
   desktopHost?: DesktopHostApi,
 ): HostBridge {
   if (currentRuntime === 'desktop' && desktopHost) {
@@ -25,4 +20,21 @@ export function createHostBridgeForRuntime(
   return createBrowserHostBridge();
 }
 
-export const hostBridge = createHostBridgeForRuntime(runtime, getDesktopHost());
+function resolveHostBridge(): HostBridge {
+  return createHostBridgeForRuntime(getRuntime(), getDesktopHost());
+}
+
+export const hostBridge: HostBridge = {
+  get runtime() {
+    return resolveHostBridge().runtime;
+  },
+  get features() {
+    return resolveHostBridge().features;
+  },
+  postMessage(message) {
+    resolveHostBridge().postMessage(message);
+  },
+  subscribe(listener) {
+    return resolveHostBridge().subscribe(listener);
+  },
+};

@@ -7,7 +7,7 @@ import App from './App.tsx';
 import { isBrowserRuntime } from './runtime';
 
 async function main() {
-  if (isBrowserRuntime) {
+  if (isBrowserRuntime()) {
     const { initBrowserMock } = await import('./browserMock.js');
     await initBrowserMock();
   }
