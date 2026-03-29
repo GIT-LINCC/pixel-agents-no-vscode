@@ -1,174 +1,182 @@
-<h1 align="center">
-    <a href="https://github.com/pablodelucca/pixel-agents/discussions">
-        <img src="webview-ui/public/banner.png" alt="Pixel Agents">
-    </a>
-</h1>
-
-<h2 align="center" style="padding-bottom: 20px;">
-  The game interface where AI agents build real things
-</h2>
-
-<div align="center" style="margin-top: 25px;">
-
-[![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/pablodelucca/pixel-agents/releases)
-[![marketplaces](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Finstalls.json)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
-[![stars](https://img.shields.io/github/stars/pablodelucca/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/stargazers)
-[![license](https://img.shields.io/github/license/pablodelucca/pixel-agents?color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/blob/main/LICENSE)
-[![good first issues](https://img.shields.io/github/issues/pablodelucca/pixel-agents/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/pablodelucca/pixel-agents/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
-
-</div>
-
-<div align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/pablodelucca/pixel-agents/discussions">💬 Discussions</a> • <a href="https://github.com/pablodelucca/pixel-agents/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a> • <a href="CHANGELOG.md">📋 Changelog</a>
-</div>
-
-<br/>
-
-Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
-
-Right now it works as a VS Code extension with Claude Code. The vision though, is a fully agent-agnostic, platform-agnostic interface for orchestrating any AI agents, deployable anywhere.
-
-This is the source code for the free Pixel Agents extension for VS Code — install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) or [Open VSX](https://open-vsx.org/extension/pablodelucca/pixel-agents) with the full furniture catalog included.
-
-![Pixel Agents screenshot](webview-ui/public/Screenshot.jpg)
-
-## Features
-
-- **One agent, one character** — every Claude Code terminal gets its own animated character
-- **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
-- **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
-- **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
-- **Sound notifications** — optional chime when an agent finishes its turn
-- **Sub-agent visualization** — Task tool sub-agents spawn as separate characters linked to their parent
-- **Persistent layouts** — your office design is saved and shared across VS Code windows
-- **External asset directories** — load custom or third-party furniture packs from any folder on your machine
-- **Diverse characters** — 6 diverse characters. These are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+# Pixel Agents No VSCode
 
 <p align="center">
-  <img src="webview-ui/public/characters.png" alt="Pixel Agents characters" width="320" height="72" style="image-rendering: pixelated;">
+  <img src="webview-ui/public/banner.png" alt="Pixel Agents No VSCode banner">
 </p>
 
-## Requirements
+<p align="center">
+  A desktop-first fork of Pixel Agents that keeps the pixel office UI, but removes the VS Code dependency.
+</p>
 
-- VS Code 1.105.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- **Platform**: Windows, Linux, and macOS are supported
+<p align="center">
+  <img src="webview-ui/public/Screenshot.jpg" alt="Pixel Agents office screenshot" width="900">
+</p>
 
-## Getting Started
+## What This Repository Is
 
-If you just want to use Pixel Agents, the easiest way is to download the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents). If you want to play with the code, develop, or contribute, then:
+This repository is a focused fork of [Pixel Agents](https://github.com/pablodelucca/pixel-agents) aimed at a no-VSCode desktop workflow.
 
-### Install from source
+The current goal is practical and narrow:
+
+- run Pixel Agents as a standalone desktop app
+- monitor local Codex and Claude sessions without relying on VS Code
+- keep the existing office visualization and shared renderer
+- prioritize a stable read-only monitor before adding desktop control features
+
+This is not a generic rebrand of the upstream project. It is a product-direction fork centered on the desktop monitor path.
+
+## Current Status
+
+The project is now in a genuinely usable state for desktop monitoring.
+
+What works today:
+
+- standalone Electron window
+- shared Pixel Agents office UI outside VS Code
+- local session discovery for:
+  - `~/.codex/sessions/**/*.jsonl`
+  - `~/.claude/projects/**/*.jsonl`
+- visible agent characters for discovered sessions
+- live read-only activity updates
+- Codex tool lifecycle visualization
+- Claude tool, waiting, permission, and sub-agent activity visualization
+- office layout rendering with bundled assets
+
+What is intentionally not in scope yet:
+
+- launching agents from the desktop UI
+- focusing existing terminal/app windows from the desktop UI
+- closing sessions from the desktop UI
+- IDE/window attachment as a core interaction model
+- desktop-first authoring flows beyond monitoring
+
+## Quick Start
+
+### Requirements
+
+- Node.js 20 or newer recommended
+- npm
+- local Codex and/or Claude transcripts on the machine you want to monitor
+
+### Install
 
 ```bash
-git clone https://github.com/pablodelucca/pixel-agents.git
-cd pixel-agents
+git clone https://github.com/GIT-LINCC/pixel-agents-no-vscode.git
+cd pixel-agents-no-vscode
 npm install
-cd webview-ui && npm install && cd ..
-npm run build
 ```
 
-Then press **F5** in VS Code to launch the Extension Development Host.
+### Run the Desktop App
 
-### Usage
+```bash
+npm run desktop:start
+```
 
-1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
-2. Click **+ Agent** to spawn a new Claude Code terminal and its character. Right-click for the option to launch with `--dangerously-skip-permissions` (bypasses all tool approval prompts)
-3. Start coding with Claude — watch the character react in real time
-4. Click a character to select it, then click a seat to reassign it
-5. Click **Layout** to open the office editor and customize your space
+This builds the shared webview UI, builds the Electron main/preload bundles, and launches the desktop monitor.
 
-## Layout Editor
+### Useful Commands
 
-The built-in editor lets you design your office:
+```bash
+npm run desktop:build
+npm run desktop:run
+npm run test:desktop
+cd webview-ui && npm test
+```
 
-- **Floor** — Full HSB color control
-- **Walls** — Auto-tiling walls with color customization
-- **Tools** — Select, paint, erase, place, eyedropper, pick
-- **Undo/Redo** — 50 levels with Ctrl+Z / Ctrl+Y
-- **Export/Import** — Share layouts as JSON files via the Settings modal
+## Desktop Architecture
 
-The grid is expandable up to 64×64 tiles. Click the ghost border outside the current grid to grow it.
+The current desktop path keeps the original renderer and adds a host bridge around it.
 
-### Office Assets
+- `desktop/main.ts`
+  Electron main process, window boot, IPC, polling loop, diagnostics
+- `desktop/preload.ts`
+  secure desktop bridge and renderer compatibility adapter
+- `desktop/bridge.ts`
+  typed desktop request/response/event contracts
+- `desktop/discovery.ts`
+  local Claude/Codex transcript discovery
+- `desktop/activityMonitor.ts`
+  lightweight activity streaming from transcript updates
+- `desktop/rendererHost.ts`
+  translation layer from desktop session state into the shared renderer event model
+- `webview-ui/`
+  existing Pixel Agents React/canvas office UI reused by the desktop app
 
-All office assets (furniture, floors, walls) are now **fully open-source** and included in this repository under `webview-ui/public/assets/`. No external purchases or imports are needed — everything works out of the box.
+The important design choice is that the desktop app does not reimplement the office UI. It reuses the shared renderer and feeds it desktop-compatible host events.
 
-Each furniture item lives in its own folder under `assets/furniture/` with a `manifest.json` that declares its sprites, rotation groups, state groups (on/off), and animation frames. Floor tiles are individual PNGs in `assets/floors/`, and wall tile sets are in `assets/walls/`. This modular structure makes it easy to add, remove, or modify assets without touching any code.
+## How Monitoring Works
 
-To add a new furniture item, create a folder in `webview-ui/public/assets/furniture/` with your PNG sprite(s) and a `manifest.json`, then rebuild. The asset manager (`scripts/asset-manager.html`) provides a visual editor for creating and editing manifests.
+The desktop host watches transcript files and maps them into the office simulation.
 
-To use furniture from an external directory, open Settings → **Add Asset Directory**. See [docs/external-assets.md](docs/external-assets.md) for the full manifest format and how to use third-party asset packs.
+For Codex:
 
-Characters are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+- recent session files are discovered from `~/.codex/sessions`
+- transcript metadata is used to derive session identity, label, workspace, and recency
+- tool activity is inferred from response items and task lifecycle events
 
-## How It Works
+For Claude:
 
-Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+- recent project transcripts are discovered from `~/.claude/projects`
+- assistant/user/progress records drive tool activity and waiting state
+- permission waits and task sub-agents are surfaced visually
 
-The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
+The monitor is observational. It does not need to patch Codex or Claude.
 
-## Tech Stack
+## Why This Fork Exists
 
-- **Extension**: TypeScript, VS Code Webview API, esbuild
-- **Webview**: React 19, TypeScript, Vite, Canvas 2D
+Upstream Pixel Agents is still primarily a VS Code extension product. This fork exists because the desktop direction has different priorities:
 
-## Known Limitations
+- desktop-first instead of editor-first
+- monitor-first instead of embedded workflow-first
+- Codex parity matters, not just Claude integration
+- VS Code attachment is optional, not foundational
 
-- **Agent-terminal sync** — the way agents are connected to Claude Code terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
-- **Heuristic-based status detection** — Claude Code's JSONL transcript format does not provide clear signals for when an agent is waiting for user input or when it has finished its turn. The current detection is based on heuristics (idle timers, turn-duration events) and often misfires — agents may briefly show the wrong status or miss transitions.
-- **Linux/macOS tip** — if you launch VS Code without a folder open (e.g. bare `code` command), agents will start in your home directory. This is fully supported; just be aware your Claude sessions will be tracked under `~/.claude/projects/` using your home directory as the project root.
+That means some upstream assumptions are intentionally being removed here, especially where they make the product harder to use outside an editor host.
+
+## Roadmap
+
+Near-term priorities:
+
+- improve Codex activity mapping fidelity
+- add a `desktop:dev` workflow for faster iteration
+- surface richer diagnostics inside the desktop UI
+- make the desktop runtime more robust across Windows/Linux/macOS
+
+Later possibilities:
+
+- optional focus/open session actions
+- desktop-native layout persistence and settings flows
+- attach-adjacent workflows beside Codex or other agent apps
+- broader agent/runtime adapters beyond the current transcript-based monitor
 
 ## Troubleshooting
 
-If your agent appears stuck on idle or doesn't spawn:
+If the desktop app opens but does not reflect local sessions, run with tracing enabled:
 
-1. **Debug View** — In the Pixel Agents panel, click the gear icon (Settings), then toggle **Debug View**. This shows connection diagnostics per agent: JSONL file status, lines parsed, last data timestamp, and file path. If you see "JSONL not found", the extension can't locate the session file.
-2. **Debug Console** — If you're running from source (Extension Development Host via F5), open VS Code's **View > Debug Console**. Search for `[Pixel Agents]` to see detailed logs: project directory resolution, JSONL polling status, path encoding mismatches, and unrecognized JSONL record types.
+```powershell
+$env:PIXEL_AGENTS_DESKTOP_TRACE = "1"
+npm run desktop:start
+```
 
-## Where This Is Going
+This writes trace output to `desktop-trace.log` in the repo root.
 
-The long-term vision is an interface where managing AI agents feels like playing the Sims, but the results are real things built.
+You can also verify the local desktop pipeline directly:
 
-- **Agents as characters** you can see, assign, monitor, and redirect, each with visible roles (designer, coder, writer, reviewer), stats, context usage, and tools.
-- **Desks as directories** — drag an agent to a desk to assign it to a project or working directory.
-- **An office as a project** — with a Kanban board on the wall where idle agents can pick up tasks autonomously.
-- **Deep inspection** — click any agent to see its model, branch, system prompt, and full work history. Interrupt it, chat with it, or redirect it.
-- **Token health bars** — rate limits and context windows visualized as in-game stats.
-- **Fully customizable** — upload your own character sprites, themes, and office assets. Eventually maybe even move beyond pixel art into 3D or VR.
+```bash
+npm run test:desktop
+npm run desktop:build
+```
 
-For this to work, the architecture needs to be modular at every level:
+## Relationship To Upstream
 
-- **Platform-agnostic**: VS Code extension today, Electron app, web app, or any other host environment tomorrow.
-- **Agent-agnostic**: Claude Code today, but built to support Codex, OpenCode, Gemini, Cursor, Copilot, and others through composable adapters.
-- **Theme-agnostic**: community-created assets, skins, and themes from any contributor.
+This repository builds on the upstream Pixel Agents project and keeps reusing major parts of its renderer, assets, and office model.
 
-We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/pablodelucca/pixel-agents/discussions).
+Upstream repository:
 
+- [pablodelucca/pixel-agents](https://github.com/pablodelucca/pixel-agents)
 
-## Community & Contributing
-
-Use **[Issues](https://github.com/pablodelucca/pixel-agents/issues)** to report bugs or request features. Join **[Discussions](https://github.com/pablodelucca/pixel-agents/discussions)** for questions and conversations.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
-
-Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
-
-## Supporting the Project
-
-If you find Pixel Agents useful, consider supporting its development:
-
-<a href="https://github.com/sponsors/pablodelucca">
-  <img src="https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github" alt="GitHub Sponsors">
-</a>
-<a href="https://ko-fi.com/pablodelucca">
-  <img src="https://img.shields.io/badge/Support-Ko--fi-ff5e5b?logo=ko-fi" alt="Ko-fi">
-</a>
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=pablodelucca/pixel-agents&type=Date)](https://www.star-history.com/?repos=pablodelucca%2Fpixel-agents&type=date&legend=bottom-right)
+This fork is focused on pushing the standalone desktop/no-VSCode path into a real product surface.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project remains licensed under the [MIT License](LICENSE).
