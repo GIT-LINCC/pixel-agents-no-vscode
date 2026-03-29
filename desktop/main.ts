@@ -8,6 +8,7 @@ import {
   type DesktopHostEvent,
   type DesktopMonitorSession,
 } from './bridge';
+import { discoverDesktopMonitorState } from './discovery';
 
 type BrowserWindowInstance = {
   loadURL(url: string): Promise<void>;
@@ -108,14 +109,16 @@ const PLACEHOLDER_HTML = `<!doctype html>
 
 const rendererUrlFromEnv = process.env.PIXEL_AGENTS_DESKTOP_URL;
 const preloadPath = join(__dirname, 'preload.js');
-const watchRoots = {
-  claude: [] as string[],
-  codex: [] as string[],
-};
+const monitorPollIntervalMs = Number(process.env.PIXEL_AGENTS_DESKTOP_POLL_MS ?? 5000);
 
 let mainWindow: BrowserWindowInstance | null = null;
 let monitorRunning = false;
-const sessions: DesktopMonitorSession[] = [];
+let monitorTimer: ReturnType<typeof setInterval> | null = null;
+let watchRoots = {
+  claude: [] as string[],
+  codex: [] as string[],
+};
+let sessions: DesktopMonitorSession[] = [];
 
 function createMainWindow(): BrowserWindowInstance {
   const windowInstance = new electron.BrowserWindow({
@@ -162,7 +165,61 @@ function emitHostEvent(event: DesktopHostEvent): void {
   mainWindow.webContents.send(IPC_CHANNELS.hostEvent, event);
 }
 
+function refreshSessions(emitUpdates: boolean): void {
+  const snapshot = discoverDesktopMonitorState();
+  const nextWatchRoots = {
+    claude: [...(snapshot.watchRoots.claude ?? [])],
+    codex: [...(snapshot.watchRoots.codex ?? [])],
+  };
+  const nextSessions = snapshot.sessions;
+  const watchRootsChanged = JSON.stringify(watchRoots) !== JSON.stringify(nextWatchRoots);
+  const sessionsChanged = JSON.stringify(sessions) !== JSON.stringify(nextSessions);
+
+  watchRoots = nextWatchRoots;
+  sessions = nextSessions;
+
+  if (!emitUpdates) {
+    return;
+  }
+
+  if (sessionsChanged) {
+    emitHostEvent({ type: 'desktop.sessions.updated', sessions });
+  }
+
+  if (sessionsChanged || watchRootsChanged) {
+    emitHostEvent({
+      type: 'desktop.diagnostics.updated',
+      payload: createDesktopBootstrapPayload({
+        sessions,
+        monitorRunning,
+        watchRoots,
+      }).diagnostics,
+    });
+  }
+}
+
+function startMonitor(): void {
+  monitorRunning = true;
+  refreshSessions(true);
+  if (monitorTimer) {
+    return;
+  }
+
+  monitorTimer = setInterval(() => {
+    refreshSessions(true);
+  }, monitorPollIntervalMs);
+}
+
+function stopMonitor(): void {
+  monitorRunning = false;
+  if (monitorTimer) {
+    clearInterval(monitorTimer);
+    monitorTimer = null;
+  }
+}
+
 function buildBootstrapResponse(): DesktopBridgeResponse {
+  refreshSessions(false);
   return {
     type: 'desktop.bootstrap.result',
     payload: createDesktopBootstrapPayload({
@@ -178,6 +235,7 @@ function buildBootstrapResponse(): DesktopBridgeResponse {
 }
 
 function buildDiagnosticsResponse(): DesktopBridgeResponse {
+  refreshSessions(false);
   return {
     type: 'desktop.diagnostics.result',
     payload: createDesktopBootstrapPayload({
@@ -193,14 +251,15 @@ function handleBridgeRequest(request: DesktopBridgeRequest): DesktopBridgeRespon
     case 'desktop.bootstrap':
       return buildBootstrapResponse();
     case 'desktop.monitor.start':
-      monitorRunning = true;
+      startMonitor();
       emitHostEvent({ type: 'desktop.monitor.state-changed', running: true });
       return { type: 'desktop.monitor.state', running: true };
     case 'desktop.monitor.stop':
-      monitorRunning = false;
+      stopMonitor();
       emitHostEvent({ type: 'desktop.monitor.state-changed', running: false });
       return { type: 'desktop.monitor.state', running: false };
     case 'desktop.sessions.list':
+      refreshSessions(false);
       return { type: 'desktop.sessions.result', sessions };
     case 'desktop.diagnostics.get':
       return buildDiagnosticsResponse();
@@ -222,6 +281,7 @@ async function bootstrap(): Promise<void> {
   await electron.app.whenReady();
 
   registerIpcHandlers();
+  refreshSessions(false);
   mainWindow = createMainWindow();
 
   electron.app.on('activate', () => {

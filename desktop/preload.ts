@@ -8,6 +8,11 @@ import {
   dispatchDesktopHostEvent,
   IPC_CHANNELS,
 } from './bridge';
+import {
+  buildRendererBootstrapEvents,
+  buildRendererDiagnostics,
+  buildRendererSessionUpdateEvents,
+} from './rendererHost';
 
 const RENDERER_HOST_BRIDGE_NAME = 'pixelAgentsHost';
 const RENDERER_HOST_EVENT = 'pixel-agents:host-message';
@@ -62,6 +67,16 @@ declare global {
 const electron = require('electron') as ElectronPreloadModule;
 const listeners = new Set<(event: DesktopHostEvent) => void>();
 const rendererHostListeners = new Set<(event: RendererHostEvent) => void>();
+let rendererSessions = [] as Array<{
+  id: string;
+  agentKind: 'claude' | 'codex';
+  label: string;
+  transcriptPath: string;
+  workspacePath?: string;
+  lastSeenAt?: string;
+  status: 'discovered' | 'watching' | 'stale' | 'unknown';
+  readOnly: true;
+}>;
 
 const rendererHostFeatures: RendererHostFeatures = {
   launchAgents: false,
@@ -87,6 +102,12 @@ function emitRendererHostEvent(event: RendererHostEvent): void {
   }
 }
 
+function emitRendererCompatibilityEvents(events: RendererHostEvent[]): void {
+  for (const event of events) {
+    emitRendererHostEvent(event);
+  }
+}
+
 electron.ipcRenderer.on(IPC_CHANNELS.hostEvent, (_event, payload) => {
   for (const listener of listeners) {
     listener(payload);
@@ -94,6 +115,13 @@ electron.ipcRenderer.on(IPC_CHANNELS.hostEvent, (_event, payload) => {
 
   if (typeof window !== 'undefined') {
     dispatchDesktopHostEvent(window, payload);
+  }
+
+  if (payload.type === 'desktop.sessions.updated') {
+    emitRendererCompatibilityEvents(
+      buildRendererSessionUpdateEvents(rendererSessions, payload.sessions),
+    );
+    rendererSessions = payload.sessions;
   }
 });
 
@@ -115,16 +143,9 @@ async function emitBootstrapToRenderer(): Promise<void> {
     return;
   }
 
-  emitRendererHostEvent({
-    type: 'settingsLoaded',
-    soundEnabled: false,
-    lastSeenVersion: '',
-    extensionVersion: 'desktop-scaffold',
-    externalAssetDirectories: [],
-  });
-  emitRendererHostEvent({ type: 'layoutLoaded', layout: null, wasReset: false });
-  emitRendererHostEvent({ type: 'existingAgents', agents: [] });
-  emitRendererHostEvent({ type: 'agentDiagnostics', agents: [] });
+  rendererSessions = response.payload.sessions;
+  emitRendererCompatibilityEvents(buildRendererBootstrapEvents(rendererSessions));
+  await api.invoke({ type: 'desktop.monitor.start' });
 }
 
 const rendererHostApi: RendererHostApi = {
@@ -135,7 +156,10 @@ const rendererHostApi: RendererHostApi = {
         void emitBootstrapToRenderer();
         return;
       case 'requestDiagnostics':
-        emitRendererHostEvent({ type: 'agentDiagnostics', agents: [] });
+        emitRendererHostEvent({
+          type: 'agentDiagnostics',
+          agents: buildRendererDiagnostics(rendererSessions),
+        });
         return;
       case 'setSoundEnabled':
       case 'setLastSeenVersion':

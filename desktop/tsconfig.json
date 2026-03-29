@@ -8,8 +8,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "rootDir": ".",
+    "rootDir": "..",
     "outDir": "./dist"
   },
-  "include": ["./*.ts"]
+  "include": ["./*.ts", "../shared/**/*.ts"]
 }
