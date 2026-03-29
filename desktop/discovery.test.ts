@@ -142,12 +142,21 @@ test('renderer host mapping emits bootstrap and incremental agent updates', () =
   ];
 
   const bootstrapEvents = buildRendererBootstrapEvents(previousSessions);
-  assert.equal(bootstrapEvents[0]?.type, 'settingsLoaded');
-  assert.equal(bootstrapEvents[1]?.type, 'layoutLoaded');
-  assert.deepEqual(bootstrapEvents[2], {
+  const settingsEvent = bootstrapEvents.find((event) => event.type === 'settingsLoaded');
+  const layoutEvent = bootstrapEvents.find((event) => event.type === 'layoutLoaded');
+  const existingAgentsEvent = bootstrapEvents.find((event) => event.type === 'existingAgents');
+  const workspaceFoldersEvent = bootstrapEvents.find((event) => event.type === 'workspaceFolders');
+
+  assert.ok(settingsEvent);
+  assert.ok(layoutEvent);
+  assert.deepEqual(existingAgentsEvent, {
     type: 'existingAgents',
     agents: [getRendererAgentId(previousSessions[0])],
     folderNames: { [getRendererAgentId(previousSessions[0])]: 'repo-a' },
+  });
+  assert.deepEqual(workspaceFoldersEvent, {
+    type: 'workspaceFolders',
+    folders: [{ name: 'repo-a', path: 'H:\\repo-a' }],
   });
 
   const updateEvents = buildRendererSessionUpdateEvents(previousSessions, nextSessions);

@@ -227,8 +227,8 @@ function buildBootstrapResponse(): DesktopBridgeResponse {
       monitorRunning,
       watchRoots,
       notes: [
-        'Main process scaffold is active.',
-        'Hook Claude/Codex discovery adapters into this bootstrap payload before wiring the shared renderer.',
+        'Main process desktop monitor is active.',
+        'Renderer compatibility mode maps discovered Claude and Codex sessions onto the existing Pixel Agents webview contract.',
       ],
     }),
   };

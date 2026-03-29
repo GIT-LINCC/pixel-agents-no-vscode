@@ -16,7 +16,7 @@ export function getRendererAgentId(session: DesktopMonitorSession): number {
 }
 
 export function buildRendererBootstrapEvents(sessions: DesktopMonitorSession[]): HostEvent[] {
-  return [
+  const events: HostEvent[] = [
     {
       type: 'settingsLoaded',
       soundEnabled: false,
@@ -24,10 +24,17 @@ export function buildRendererBootstrapEvents(sessions: DesktopMonitorSession[]):
       extensionVersion: 'desktop-monitor',
       externalAssetDirectories: [],
     },
-    { type: 'layoutLoaded', layout: null, wasReset: false },
     createExistingAgentsEvent(sessions),
     createDiagnosticsEvent(sessions),
+    { type: 'layoutLoaded', layout: null, wasReset: false },
   ];
+
+  const workspaceFoldersEvent = createWorkspaceFoldersEvent(sessions);
+  if (workspaceFoldersEvent) {
+    events.splice(2, 0, workspaceFoldersEvent);
+  }
+
+  return events;
 }
 
 export function buildRendererSessionUpdateEvents(
@@ -115,6 +122,30 @@ function getWorkspaceFolderName(session: DesktopMonitorSession): string | undefi
 
   const baseName = path.basename(session.workspacePath);
   return baseName || undefined;
+}
+
+function createWorkspaceFoldersEvent(sessions: DesktopMonitorSession[]): HostEvent | null {
+  const uniqueFolders = new Map<string, { name: string; path: string }>();
+
+  for (const session of sessions) {
+    if (!session.workspacePath) {
+      continue;
+    }
+
+    uniqueFolders.set(session.workspacePath, {
+      name: path.basename(session.workspacePath),
+      path: session.workspacePath,
+    });
+  }
+
+  if (uniqueFolders.size === 0) {
+    return null;
+  }
+
+  return {
+    type: 'workspaceFolders',
+    folders: [...uniqueFolders.values()],
+  };
 }
 
 function safeStat(filePath: string): fs.Stats | null {
