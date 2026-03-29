@@ -29,12 +29,24 @@ window.pixelAgentsDesktop.onHostEvent((event) => {
 });
 ```
 
+- It also exposes a temporary compatibility bridge for the shared renderer:
+
+```ts
+window.pixelAgentsHost.postMessage({ type: 'webviewReady' });
+window.pixelAgentsHost.subscribe((event) => {
+  // settingsLoaded / layoutLoaded / existingAgents
+});
+```
+
 - The host intentionally reports a read-only capability set:
   - launch: off
   - focus: off
   - close: off
   - IDE attach: off
   - shared renderer reuse: planned, not wired
+
+- The compatibility bridge only bootstraps the current renderer into desktop mode with an empty office state.
+  It does not yet translate Claude/Codex monitor sessions into live Pixel Agents.
 
 ## Why It Is Structured This Way
 

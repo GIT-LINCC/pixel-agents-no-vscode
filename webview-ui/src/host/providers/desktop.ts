@@ -5,7 +5,7 @@ import {
   type HostCommand,
   mergeHostFeatures,
 } from '../contracts.js';
-import { subscribeToWindowHostEvents } from '../windowEvents.js';
+import { getWindowHostEventSource, subscribeToWindowHostEvents } from '../windowEvents.js';
 
 declare global {
   interface Window {
@@ -28,7 +28,7 @@ export function createDesktopHostBridge(hostApi: DesktopHostApi): HostBridge {
         const unsubscribe = hostApi.subscribe(listener);
         return typeof unsubscribe === 'function' ? unsubscribe : () => undefined;
       }
-      return subscribeToWindowHostEvents(window, listener);
+      return subscribeToWindowHostEvents(getWindowHostEventSource(), listener);
     },
   });
 }

@@ -6,6 +6,15 @@ export interface WindowHostEventSource {
   dispatchEvent?(event: Event): boolean;
 }
 
+export function getWindowHostEventSource(): WindowHostEventSource {
+  const maybeWindow = (globalThis as typeof globalThis & { window?: WindowHostEventSource }).window;
+  if (!maybeWindow) {
+    throw new Error('Pixel Agents host bridge requires a window-like event source.');
+  }
+
+  return maybeWindow;
+}
+
 export function readHostEvent(payload: unknown): HostEvent | null {
   if (
     typeof payload === 'object' &&

@@ -1,6 +1,6 @@
 import { createHostBridge, type HostBridge } from '../bridge.js';
 import { DEFAULT_HOST_FEATURES, type HostCommand } from '../contracts.js';
-import { subscribeToWindowHostEvents } from '../windowEvents.js';
+import { getWindowHostEventSource, subscribeToWindowHostEvents } from '../windowEvents.js';
 
 declare function acquireVsCodeApi(): { postMessage(message: HostCommand): void };
 
@@ -14,7 +14,7 @@ export function createVsCodeHostBridge(): HostBridge {
       vscodeApi.postMessage(message);
     },
     subscribe(listener) {
-      return subscribeToWindowHostEvents(window, listener);
+      return subscribeToWindowHostEvents(getWindowHostEventSource(), listener);
     },
   });
 }

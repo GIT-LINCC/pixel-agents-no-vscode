@@ -18,12 +18,30 @@ declare function acquireVsCodeApi(): unknown;
 
 export type Runtime = HostRuntime;
 
-export const runtime: Runtime =
-  typeof window !== 'undefined' && window.pixelAgentsHost
-    ? 'desktop'
-    : typeof acquireVsCodeApi !== 'undefined'
-      ? 'vscode'
-      : 'browser';
+function getDesktopHost(): DesktopHostApi | undefined {
+  return (globalThis as typeof globalThis & { window?: { pixelAgentsHost?: DesktopHostApi } })
+    .window?.pixelAgentsHost;
+}
+
+export function detectRuntime(options?: {
+  hasDesktopHost?: boolean;
+  hasVsCodeApi?: boolean;
+}): Runtime {
+  if (options?.hasDesktopHost) {
+    return 'desktop';
+  }
+
+  if (options?.hasVsCodeApi) {
+    return 'vscode';
+  }
+
+  return 'browser';
+}
+
+export const runtime: Runtime = detectRuntime({
+  hasDesktopHost: Boolean(getDesktopHost()),
+  hasVsCodeApi: typeof acquireVsCodeApi !== 'undefined',
+});
 
 export const isBrowserRuntime = runtime === 'browser';
 export const isDesktopRuntime = runtime === 'desktop';
